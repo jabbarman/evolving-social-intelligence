@@ -26,6 +26,9 @@ class Simulation:
         self.evolution = self._create_evolution()
         self.logger = Logger(config["logging"])
 
+        # Create spatial index for faster agent lookup
+        self._build_agent_grid()
+
     def _create_environment(self) -> Environment:
         """Create environment from config."""
         env_config = self.config["environment"]
@@ -72,15 +75,29 @@ class Simulation:
             mutation_std=evo_config["mutation_std"]
         )
 
+    def _build_agent_grid(self) -> None:
+        """Build spatial index for fast agent lookup."""
+        grid_size = self.environment.grid_size
+        self.agent_grid = {}
+
+        for agent in self.agents:
+            pos = agent.position
+            if pos not in self.agent_grid:
+                self.agent_grid[pos] = []
+            self.agent_grid[pos].append(agent)
+
     def step(self) -> None:
         """Execute one simulation timestep."""
         agent_config = self.config["agent"]
         sim_config = self.config["simulation"]
 
+        # Rebuild spatial index
+        self._build_agent_grid()
+
         # 1. Agent perception and decision
         actions = []
         for agent in self.agents:
-            observations = agent.perceive(self.environment, self.agents)
+            observations = self._perceive_fast(agent)
             action_output = agent.decide(observations)
             actions.append(action_output)
 
@@ -138,7 +155,57 @@ class Simulation:
 
         # 9. Logging
         if self.timestep % self.config["logging"]["log_interval"] == 0:
-            self.logger.log_timestep(self.timestep, self.agents)
+            self.logger.log_timestep(self.timestep, self.agents, self.environment)
+
+    def _perceive_fast(self, agent) -> np.ndarray:
+        """Optimized perception using spatial indexing.
+
+        Returns:
+            observations: 52-dimensional vector (25 food + 25 agents + energy + age)
+        """
+        x, y = agent.position
+        perception_range = 2  # 2 cells in each direction = 5x5 grid
+        grid_size = self.environment.grid_size
+
+        # Initialize observation grids
+        food_obs = np.zeros(25)
+        agent_obs = np.zeros(25)
+
+        # Scan 5x5 local area
+        idx = 0
+        for dx in range(-perception_range, perception_range + 1):
+            for dy in range(-perception_range, perception_range + 1):
+                # Get position with toroidal wrapping
+                pos_x = (x + dx) % grid_size[0]
+                pos_y = (y + dy) % grid_size[1]
+                pos = (pos_x, pos_y)
+
+                # Check for food
+                if self.environment.grid[pos_x, pos_y] == 1:
+                    food_obs[idx] = 1.0
+
+                # Check for other agents using spatial index
+                if pos in self.agent_grid:
+                    for other_agent in self.agent_grid[pos]:
+                        if other_agent is not agent:
+                            agent_obs[idx] = 1.0
+                            break
+
+                idx += 1
+
+        # Normalize energy and age for better neural network performance
+        normalized_energy = agent.energy / 100.0
+        normalized_age = min(agent.age / 1000.0, 1.0)
+
+        # Concatenate all observations
+        observations = np.concatenate([
+            food_obs,
+            agent_obs,
+            [normalized_energy],
+            [normalized_age]
+        ])
+
+        return observations
 
     def _find_adjacent_position(self, position: tuple) -> tuple:
         """Find an empty adjacent position for offspring."""

@@ -5,6 +5,7 @@ import yaml
 import argparse
 from pathlib import Path
 from src.simulation import Simulation
+from src.visualization import Visualizer
 from tqdm import tqdm
 
 
@@ -54,29 +55,61 @@ def main():
     max_steps = args.steps if args.steps else config['simulation']['max_timesteps']
     print(f"Running for {max_steps} timesteps...")
 
+    # Initialize visualizer if requested
+    viz = None
+    if not args.no_viz:
+        grid_size = tuple(config['simulation']['grid_size'])
+        cell_size = 8 if grid_size[0] <= 100 else 4
+        viz = Visualizer(grid_size, cell_size=cell_size, fps=30)
+        print("Visualization enabled (press ESC to close window)")
+
     # Run simulation
     try:
-        for step in tqdm(range(max_steps), desc="Simulating"):
-            sim.step()
-            sim.timestep += 1
+        if viz:
+            # Run with visualization
+            running = True
+            while sim.timestep < max_steps and running:
+                sim.step()
+                sim.timestep += 1
 
-            # Print status every 10k steps
-            if sim.timestep % 10000 == 0:
-                print(f"\nTimestep {sim.timestep}:")
-                print(f"  Population: {len(sim.agents)}")
-                if len(sim.agents) > 0:
-                    energies = [a.energy for a in sim.agents]
-                    ages = [a.age for a in sim.agents]
-                    print(f"  Avg energy: {sum(energies)/len(energies):.2f}")
-                    print(f"  Avg age: {sum(ages)/len(ages):.2f}")
+                # Render visualization
+                running = viz.render(sim.environment, sim.agents, sim.timestep)
 
-            # Check for extinction
-            if len(sim.agents) == 0:
-                print(f"\nPopulation extinct at timestep {sim.timestep}")
-                break
+                # Print status every 1k steps
+                if sim.timestep % 1000 == 0:
+                    print(f"Timestep {sim.timestep}: Population={len(sim.agents)}")
+
+                # Check for extinction
+                if len(sim.agents) == 0:
+                    print(f"\nPopulation extinct at timestep {sim.timestep}")
+                    break
+
+        else:
+            # Run without visualization (faster)
+            for step in tqdm(range(max_steps), desc="Simulating"):
+                sim.step()
+                sim.timestep += 1
+
+                # Print status every 10k steps
+                if sim.timestep % 10000 == 0:
+                    print(f"\nTimestep {sim.timestep}:")
+                    print(f"  Population: {len(sim.agents)}")
+                    if len(sim.agents) > 0:
+                        energies = [a.energy for a in sim.agents]
+                        ages = [a.age for a in sim.agents]
+                        print(f"  Avg energy: {sum(energies)/len(energies):.2f}")
+                        print(f"  Avg age: {sum(ages)/len(ages):.2f}")
+
+                # Check for extinction
+                if len(sim.agents) == 0:
+                    print(f"\nPopulation extinct at timestep {sim.timestep}")
+                    break
 
     except KeyboardInterrupt:
         print("\n\nSimulation interrupted by user")
+    finally:
+        if viz:
+            viz.close()
 
     # Final statistics
     print(f"\n{'='*50}")

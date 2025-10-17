@@ -32,15 +32,20 @@ class Visualizer:
 
         # Colors
         self.COLOR_EMPTY = (0, 0, 0)
-        self.COLOR_FOOD = (0, 255, 0)
-        self.COLOR_AGENT = (255, 255, 255)
+        self.COLOR_FOOD = (0, 200, 0)
+        self.COLOR_AGENT_MIN = (50, 50, 255)  # Low energy (blue)
+        self.COLOR_AGENT_MAX = (255, 50, 50)  # High energy (red)
 
-    def render(self, environment, agents) -> bool:
+        # Font for stats
+        self.font = pygame.font.Font(None, 24)
+
+    def render(self, environment, agents, timestep: int = 0) -> bool:
         """Render current state of simulation.
 
         Args:
             environment: Environment instance
             agents: List of agents
+            timestep: Current timestep
 
         Returns:
             continue_running: False if user closed window
@@ -49,12 +54,61 @@ class Visualizer:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return False
 
         # Clear screen
         self.screen.fill(self.COLOR_EMPTY)
 
-        # TODO: Draw food
-        # TODO: Draw agents
+        # Draw food
+        for x in range(self.grid_size[0]):
+            for y in range(self.grid_size[1]):
+                if environment.grid[x, y] == 1:
+                    rect = pygame.Rect(
+                        x * self.cell_size,
+                        y * self.cell_size,
+                        self.cell_size,
+                        self.cell_size
+                    )
+                    pygame.draw.rect(self.screen, self.COLOR_FOOD, rect)
+
+        # Draw agents (colored by energy level)
+        for agent in agents:
+            x, y = agent.position
+
+            # Color based on energy (interpolate between blue and red)
+            energy_ratio = min(agent.energy / 150.0, 1.0)
+            color = (
+                int(self.COLOR_AGENT_MIN[0] + energy_ratio * (self.COLOR_AGENT_MAX[0] - self.COLOR_AGENT_MIN[0])),
+                int(self.COLOR_AGENT_MIN[1] + energy_ratio * (self.COLOR_AGENT_MAX[1] - self.COLOR_AGENT_MIN[1])),
+                int(self.COLOR_AGENT_MIN[2] + energy_ratio * (self.COLOR_AGENT_MAX[2] - self.COLOR_AGENT_MIN[2]))
+            )
+
+            center = (
+                x * self.cell_size + self.cell_size // 2,
+                y * self.cell_size + self.cell_size // 2
+            )
+            radius = max(2, self.cell_size // 3)
+            pygame.draw.circle(self.screen, color, center, radius)
+
+        # Draw stats overlay
+        if len(agents) > 0:
+            avg_energy = sum(a.energy for a in agents) / len(agents)
+            avg_age = sum(a.age for a in agents) / len(agents)
+
+            stats_text = [
+                f"Timestep: {timestep}",
+                f"Population: {len(agents)}",
+                f"Avg Energy: {avg_energy:.1f}",
+                f"Avg Age: {avg_age:.0f}"
+            ]
+
+            y_offset = 10
+            for text in stats_text:
+                surface = self.font.render(text, True, (255, 255, 255))
+                self.screen.blit(surface, (10, y_offset))
+                y_offset += 25
 
         pygame.display.flip()
         self.clock.tick(self.fps)
