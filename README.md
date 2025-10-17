@@ -40,7 +40,7 @@ Future directions: environmental complexity, predator-prey dynamics, richer soci
 
 ## Quick Demo
 
-![Simulation Screenshot](docs/screenshot-placeholder.png)
+![Simulation Screenshot](docs/simulation-screenshot.png)
 *Agents (colored circles) navigate a grid world, consuming food (green squares) and evolving over time.*
 
 ---
