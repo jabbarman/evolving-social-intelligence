@@ -4,7 +4,7 @@ setup(
     name="evolving-social-intelligence",
     version="0.1.0",
     description="An open-ended evolutionary environment where AI agents develop intelligence through social interaction",
-    author="Joseph",
+    author="Joseph Jabbar",
     python_requires=">=3.10",
     packages=find_packages(),
     install_requires=[
