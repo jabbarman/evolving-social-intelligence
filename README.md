@@ -138,6 +138,18 @@ python3 main.py --config configs/fast_test.yaml
 python3 main.py --config configs/fast_test.yaml --steps 10000 --no-viz
 ```
 
+### Checkpointing and Resuming Runs
+
+- The simulation periodically writes compressed checkpoints to `experiments/logs/checkpoints/` (or the `logging.save_dir` you configure). The cadence is set by `logging.checkpoint_interval`; set it to `0` to disable automatic saves.
+- Hitting `Ctrl+C` during a run also triggers a best-effort checkpoint before the program exits, so long-running experiments can stop safely.
+- Resume from any checkpoint file with the new `--resume-from` flag:
+
+```bash
+python3 main.py --resume-from experiments/logs/checkpoints/checkpoint_00050000.pkl.gz --no-viz
+```
+
+The configuration stored in the checkpoint is restored automatically. Values under `logging` can still be overridden by the config you pass via `--config`.
+
 ### Available Configurations
 
 - `configs/default.yaml` - Standard setup (100x100 grid, 50 agents, 200 cap)
