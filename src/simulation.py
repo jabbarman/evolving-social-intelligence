@@ -1,33 +1,47 @@
 """Simulation module: Main simulation loop."""
 
+import copy
+import gzip
+import pickle
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
 import numpy as np
-from typing import Dict, Any, List
-from src.environment import Environment
+
 from src.agent import Agent
-from src.evolution import Evolution
 from src.analysis import Logger
+from src.environment import Environment
+from src.evolution import Evolution
 
 
 class Simulation:
     """Main simulation coordinator."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any],
+                 checkpoint_path: Optional[Union[str, Path]] = None,
+                 resume_overrides: Optional[Dict[str, Any]] = None):
         """Initialize simulation with configuration.
 
         Args:
             config: Configuration dictionary
+            checkpoint_path: Optional path to resume from checkpoint
         """
-        self.config = config
+        self.config = copy.deepcopy(config)
         self.timestep = 0
+        self.environment: Optional[Environment] = None
+        self.agents: List[Agent] = []
+        self.evolution: Optional[Evolution] = None
+        self.logger: Optional[Logger] = None
+        self.agent_grid: Dict[tuple, List[Agent]] = {}
 
-        # Initialize components
-        self.environment = self._create_environment()
-        self.agents = self._create_initial_agents()
-        self.evolution = self._create_evolution()
-        self.logger = Logger(config["logging"])
-
-        # Create spatial index for faster agent lookup
-        self._build_agent_grid()
+        if checkpoint_path:
+            self.load_checkpoint(checkpoint_path, config_override=resume_overrides)
+        else:
+            self.environment = self._create_environment()
+            self.agents = self._create_initial_agents()
+            self.evolution = self._create_evolution()
+            self.logger = Logger(self.config["logging"])
+            self._build_agent_grid()
 
     def _create_environment(self) -> Environment:
         """Create environment from config."""
@@ -240,3 +254,155 @@ class Simulation:
         for _ in range(num_steps):
             self.step()
             self.timestep += 1
+            self._maybe_save_checkpoint()
+
+    def save_checkpoint(self, checkpoint_path: Optional[Union[str, Path]] = None) -> Path:
+        """Persist the full simulation state to disk.
+
+        Args:
+            checkpoint_path: Optional explicit path. Defaults to logging directory.
+
+        Returns:
+            Path to the written checkpoint file.
+        """
+        payload = self._build_checkpoint_payload()
+
+        if checkpoint_path is None:
+            if not self.logger:
+                raise RuntimeError("Logger must be initialized before saving checkpoints.")
+            return self.logger.save_checkpoint(self.timestep, payload)
+
+        checkpoint_path = Path(checkpoint_path)
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        with gzip.open(checkpoint_path, "wb") as fh:
+            pickle.dump(payload, fh, protocol=pickle.HIGHEST_PROTOCOL)
+        return checkpoint_path
+
+    def load_checkpoint(self, checkpoint_path: Union[str, Path],
+                        config_override: Optional[Dict[str, Any]] = None) -> None:
+        """Restore simulation state from checkpoint.
+
+        Args:
+            checkpoint_path: Path to checkpoint file.
+            config_override: Optional overrides applied on top of stored config.
+        """
+        payload = self._load_checkpoint_payload(checkpoint_path)
+        self._restore_from_payload(payload, config_override=config_override)
+
+    def _maybe_save_checkpoint(self) -> Optional[Path]:
+        """Save checkpoint if configured interval is reached."""
+        logging_cfg = self.config.get("logging", {})
+        interval = logging_cfg.get("checkpoint_interval")
+        if not interval or interval <= 0:
+            return None
+        if self.timestep <= 0 or self.timestep % interval != 0:
+            return None
+        return self.save_checkpoint()
+
+    @classmethod
+    def from_checkpoint(cls, checkpoint_path: Union[str, Path],
+                        config_override: Optional[Dict[str, Any]] = None) -> "Simulation":
+        """Create simulation instance directly from checkpoint."""
+        payload = cls._load_checkpoint_payload(checkpoint_path)
+        config = copy.deepcopy(payload["config"])
+        if config_override:
+            config = cls._deep_update(config, config_override)
+        sim = cls(config)
+        sim._restore_from_payload(payload, config_override=config_override)
+        return sim
+
+    def _build_checkpoint_payload(self) -> Dict[str, Any]:
+        """Create a serializable snapshot of current state."""
+        if not self.environment or not self.evolution or not self.logger:
+            raise RuntimeError("Simulation components not initialized; cannot checkpoint.")
+
+        environment_state = {
+            "grid_size": tuple(self.environment.grid_size),
+            "food_spawn_rate": self.environment.food_spawn_rate,
+            "food_energy_value": self.environment.food_energy_value,
+            "grid": np.array(self.environment.grid, copy=True),
+        }
+
+        agents_state = []
+        for agent in self.agents:
+            agents_state.append({
+                "position": tuple(int(v) for v in agent.position),
+                "energy": float(agent.energy),
+                "age": int(agent.age),
+                "genome": np.array(agent.genome, copy=True),
+            })
+
+        logger_state = {
+            "metrics": copy.deepcopy(self.logger.metrics),
+            "prev_population": int(self.logger.prev_population),
+        }
+
+        payload: Dict[str, Any] = {
+            "version": 1,
+            "config": copy.deepcopy(self.config),
+            "timestep": int(self.timestep),
+            "environment": environment_state,
+            "agents": agents_state,
+            "rng_state": np.random.get_state(),
+            "logger": logger_state,
+        }
+        return payload
+
+    @staticmethod
+    def _load_checkpoint_payload(checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
+        """Load checkpoint payload from disk."""
+        checkpoint_path = Path(checkpoint_path)
+        with gzip.open(checkpoint_path, "rb") as fh:
+            payload = pickle.load(fh)
+        return payload
+
+    def _restore_from_payload(self, payload: Dict[str, Any],
+                              config_override: Optional[Dict[str, Any]] = None) -> None:
+        """Restore instance attributes from checkpoint payload."""
+        config = copy.deepcopy(payload["config"])
+        if config_override:
+            config = self._deep_update(config, config_override)
+        self.config = config
+
+        env_state = payload["environment"]
+        self.environment = Environment(
+            grid_size=tuple(env_state["grid_size"]),
+            food_spawn_rate=env_state["food_spawn_rate"],
+            food_energy_value=env_state["food_energy_value"],
+            seed=None,
+        )
+        self.environment.grid = np.array(env_state["grid"], copy=True)
+
+        self.agents = []
+        for agent_state in payload["agents"]:
+            genome = np.array(agent_state["genome"], copy=True)
+            agent = Agent(
+                position=tuple(agent_state["position"]),
+                energy=agent_state["energy"],
+                genome=genome,
+            )
+            agent.age = agent_state["age"]
+            self.agents.append(agent)
+
+        self.evolution = self._create_evolution()
+        self.logger = Logger(self.config["logging"])
+
+        logger_state = payload.get("logger", {})
+        if logger_state:
+            self.logger.metrics = copy.deepcopy(logger_state.get("metrics", self.logger.metrics))
+            self.logger.prev_population = logger_state.get("prev_population", len(self.agents))
+
+        self.timestep = int(payload["timestep"])
+        np.random.set_state(payload["rng_state"])
+        self._build_agent_grid()
+
+    @staticmethod
+    def _deep_update(original: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+        """Recursively merge dictionaries."""
+        for key, value in updates.items():
+            if (key in original and isinstance(original[key], dict)
+                    and isinstance(value, dict)):
+                original[key] = Simulation._deep_update(original[key], value)
+            else:
+                original[key] = value
+        return original

@@ -1,8 +1,12 @@
 """Analysis module: Metrics, logging, and analysis tools."""
 
+import copy
+import gzip
 import json
+import pickle
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
 import numpy as np
 
 
@@ -70,15 +74,28 @@ class Logger:
         else:
             self.metrics["total_food"].append(0)
 
-    def save_checkpoint(self, timestep: int, simulation_state: Dict[str, Any]) -> None:
+    def save_checkpoint(self, timestep: int, simulation_state: Dict[str, Any]) -> Path:
         """Save simulation checkpoint.
 
         Args:
             timestep: Current timestep
             simulation_state: Complete simulation state
         """
-        # TODO: Implement checkpoint saving
-        pass
+        checkpoint_dir = self.save_dir / "checkpoints"
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        checkpoint_path = checkpoint_dir / f"checkpoint_{timestep:08d}.pkl.gz"
+
+        payload = copy.deepcopy(simulation_state)
+        payload.setdefault("timestep", timestep)
+        payload.setdefault("logger", {
+            "metrics": copy.deepcopy(self.metrics),
+            "prev_population": self.prev_population,
+        })
+
+        with gzip.open(checkpoint_path, "wb") as fh:
+            pickle.dump(payload, fh, protocol=pickle.HIGHEST_PROTOCOL)
+
+        return checkpoint_path
 
     def save_metrics(self) -> None:
         """Save collected metrics to file."""

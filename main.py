@@ -37,23 +37,37 @@ def main():
         action='store_true',
         help='Disable visualization'
     )
+    parser.add_argument(
+        '--resume-from',
+        type=str,
+        default=None,
+        help='Resume simulation state from a checkpoint file'
+    )
 
     args = parser.parse_args()
 
     # Load configuration
     config = load_config(args.config)
-    print(f"Loaded config from {args.config}")
+
+    # Create simulation
+    if args.resume_from:
+        print(f"Resuming from checkpoint: {args.resume_from}")
+        logging_override = {"logging": config["logging"]} if "logging" in config else None
+        sim = Simulation.from_checkpoint(args.resume_from, config_override=logging_override)
+        print(f"Checkpoint configuration restored (override source: {args.config})")
+    else:
+        sim = Simulation(config)
+        print(f"Loaded config from {args.config}")
+
+    config = sim.config
     print(f"Grid size: {config['simulation']['grid_size']}")
     print(f"Initial population: {config['simulation']['initial_population']}")
     print(f"Population cap: {config['simulation']['population_cap']}")
-
-    # Create simulation
-    sim = Simulation(config)
-    print(f"\nSimulation initialized with {len(sim.agents)} agents")
+    print(f"\nSimulation initialized with {len(sim.agents)} agents at timestep {sim.timestep}")
 
     # Determine number of steps
     max_steps = args.steps if args.steps else config['simulation']['max_timesteps']
-    print(f"Running for {max_steps} timesteps...")
+    print(f"Running until timestep {max_steps} (current: {sim.timestep})...")
 
     # Initialize visualizer if requested
     viz = None
@@ -71,6 +85,7 @@ def main():
             while sim.timestep < max_steps and running:
                 sim.step()
                 sim.timestep += 1
+                sim._maybe_save_checkpoint()
 
                 # Render visualization
                 running = viz.render(sim.environment, sim.agents, sim.timestep)
@@ -86,27 +101,36 @@ def main():
 
         else:
             # Run without visualization (faster)
-            for step in tqdm(range(max_steps), desc="Simulating"):
-                sim.step()
-                sim.timestep += 1
+            if sim.timestep >= max_steps:
+                print("Simulation has already reached the requested timestep count.")
+            else:
+                for _ in tqdm(range(sim.timestep, max_steps), desc="Simulating",
+                              initial=sim.timestep, total=max_steps):
+                    sim.step()
+                    sim.timestep += 1
+                    sim._maybe_save_checkpoint()
 
-                # Print status every 10k steps
-                if sim.timestep % 10000 == 0:
-                    print(f"\nTimestep {sim.timestep}:")
-                    print(f"  Population: {len(sim.agents)}")
-                    if len(sim.agents) > 0:
-                        energies = [a.energy for a in sim.agents]
-                        ages = [a.age for a in sim.agents]
-                        print(f"  Avg energy: {sum(energies)/len(energies):.2f}")
-                        print(f"  Avg age: {sum(ages)/len(ages):.2f}")
+                    # Print status every 10k steps
+                    if sim.timestep % 10000 == 0:
+                        print(f"\nTimestep {sim.timestep}:")
+                        print(f"  Population: {len(sim.agents)}")
+                        if len(sim.agents) > 0:
+                            energies = [a.energy for a in sim.agents]
+                            ages = [a.age for a in sim.agents]
+                            print(f"  Avg energy: {sum(energies)/len(energies):.2f}")
+                            print(f"  Avg age: {sum(ages)/len(ages):.2f}")
 
-                # Check for extinction
-                if len(sim.agents) == 0:
-                    print(f"\nPopulation extinct at timestep {sim.timestep}")
-                    break
-
+                    # Check for extinction
+                    if len(sim.agents) == 0:
+                        print(f"\nPopulation extinct at timestep {sim.timestep}")
+                        break
     except KeyboardInterrupt:
         print("\n\nSimulation interrupted by user")
+        try:
+            checkpoint_path = sim.save_checkpoint()
+            print(f"Checkpoint saved to {checkpoint_path}")
+        except Exception as exc:  # pylint: disable=broad-except
+            print(f"Failed to save checkpoint on interrupt: {exc}")
     finally:
         if viz:
             viz.close()
