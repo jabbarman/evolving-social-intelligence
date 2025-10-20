@@ -44,6 +44,26 @@ Future directions: environmental complexity, predator-prey dynamics, richer soci
 *Agents (colored circles) navigate a grid world, consuming food (green squares) and evolving over time.*
 
 ---
+## System Dependencies
+
+Before installing Python dependencies, you need to install SDL2 libraries:
+
+### Ubuntu/Debian:
+```bash
+sudo apt-get update
+sudo apt-get install python3-dev libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libfreetype6-dev
+```
+
+### macOS (with Homebrew):
+```bash
+brew install sdl2 sdl2_image sdl2_mixer sdl2_ttf freetype
+```
+
+### Fedora/RHEL:
+```bash
+sudo dnf install python3-devel SDL2-devel SDL2_image-devel SDL2_mixer-devel SDL2_ttf-devel freetype-devel
+```
+
 
 ## Setup and Installation
 
