@@ -572,5 +572,3 @@ logging:
    - Polish code
 
 ---
-
-**Good luck! This is going to be fascinating. Feel free to reach out as you build - I'm excited to see where this goes.**
