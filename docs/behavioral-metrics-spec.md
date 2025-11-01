@@ -23,7 +23,7 @@ Add comprehensive behavioral analysis and lineage tracking to understand how age
 
 **Data structure:**
 ```python
-# Add to metrics.json
+# Add to metrics.npz
 {
   "timesteps": [...],
   "mean_distance_per_step": [0.85, 0.87, 0.91, ...],
@@ -55,7 +55,7 @@ Add comprehensive behavioral analysis and lineage tracking to understand how age
 
 **Data structure:**
 ```python
-# Add to metrics.json
+# Add to metrics.npz
 {
   "timesteps": [...],
   "mean_food_discovery_rate": [0.02, 0.025, 0.031, ...],
@@ -102,7 +102,7 @@ where p_i = probability of direction i (up/down/left/right/stay)
 
 **Data structure:**
 ```python
-# Add to metrics.json
+# Add to metrics.npz
 {
   "timesteps": [...],
   "mean_movement_entropy": [2.1, 2.0, 1.8, ...],  # Max = 2.32 bits for 5 actions
@@ -336,7 +336,7 @@ lineage_tracking:
 - Option to disable tracking in config
 
 **Storage impact:**
-- Behavioral metrics: +30% to metrics.json size
+- Behavioral metrics: stored in compressed metrics.npz (80-90% smaller vs. JSON)
 - Lineage data: Separate file, ~1-2MB per 1M timesteps
 - Total: Manageable for long runs
 
@@ -352,7 +352,7 @@ evolving-social-intelligence/
 │   └── analysis.py          # Updated with new visualizations
 ├── experiments/
 │   └── logs/
-│       ├── metrics.json        # Existing + behavioral metrics
+│       ├── metrics.npz        # Existing + behavioral metrics
 │       ├── lineage_stats.json  # Summary lineage statistics
 │       └── lineage.db          # SQLite lineage datastore
 └── notebooks/
@@ -369,7 +369,7 @@ Before merging:
 - [ ] Verify lineage IDs are unique and consistent
 - [ ] Check descendant counting is accurate (manual verification)
 - [ ] Test with population cap enforcement (oldest agents removed)
-- [ ] Verify metrics.json is still valid JSON
+- [ ] Verify metrics.npz loads correctly via NumPy
 - [ ] Update README with new metrics documentation
 - [ ] Create example visualization notebook
 

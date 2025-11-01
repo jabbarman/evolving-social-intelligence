@@ -251,15 +251,15 @@ The simulation now records:
 - **Foraging efficiency** – Mean and max food discovery rates alongside total food consumed per logging window
 - **Lineage health** – Active vs. extinct founding lines, dominant lineages, Simpson diversity index, and generation depth
 
-All metrics are written to `experiments/logs/metrics.json`, while lineage summaries live in `experiments/logs/lineage_stats.json` and the SQLite database `experiments/logs/lineage.db`. Explore them with the new `notebooks/behavioral_analysis.ipynb` notebook or your favorite analysis tools (or connect to the SQLite database directly for richer queries).
+All metrics are written to a compressed archive at `experiments/logs/metrics.npz`, while lineage summaries live in `experiments/logs/lineage_stats.json` and the SQLite database `experiments/logs/lineage.db`. Explore them with the new `notebooks/behavioral_analysis.ipynb` notebook or your favorite analysis tools (or connect to the SQLite database directly for richer queries).
 
-For long runs, the helper script `scripts/plot_behavioral_trends.py` streams the large `metrics.json` file and produces a down-sampled trend plot:
+For long runs, the helper script `scripts/plot_behavioral_trends.py` reads the NumPy archive and produces a down-sampled trend plot:
 
 ```bash
 python scripts/plot_behavioral_trends.py --logs-dir experiments/logs --stride 5000
 ```
 
-Install `ijson` if you want the streaming behaviour: `pip install ijson`.
+The plots are written to `experiments/logs/plots/`.
 
 Lineage summaries are smaller but you can turn them into quick visuals with:
 
@@ -267,7 +267,7 @@ Lineage summaries are smaller but you can turn them into quick visuals with:
 python scripts/plot_lineage_dynamics.py --logs-dir experiments/logs
 ```
 
-This emits `lineage_metrics_summary.png` plus a bar chart of the latest dominant lineages.
+This emits `lineage_metrics_summary.png` plus a bar chart of the latest dominant lineages inside `experiments/logs/plots/`.
 
 ---
 
@@ -292,7 +292,7 @@ evolving-social-intelligence/
 │   ├── visualization.py         # Pygame rendering
 │   └── analysis.py              # Metrics and logging
 ├── experiments/
-│   └── logs/                    # Saved metrics (JSON)
+│   └── logs/                    # Saved metrics (NumPy) & lineage DB
 ├── tests/                       # Unit tests (TODO)
 └── docs/                        # Documentation
 ```
@@ -355,18 +355,21 @@ Each timestep:
 
 ## Analyzing Results
 
-Metrics are saved to `experiments/logs/metrics.json` after each run:
+Metrics are saved to `experiments/logs/metrics.npz` after each run:
 
 ```python
-import json
+import numpy as np
 import matplotlib.pyplot as plt
 
 # Load metrics
-with open('experiments/logs/metrics.json') as f:
-    data = json.load(f)
+with np.load('experiments/logs/metrics.npz') as data:
+    timesteps = data['timesteps']
+    population = data['population']
+    mean_energy = data['mean_energy']
+    mean_age = data['mean_age']
 
 # Plot population over time
-plt.plot(data['timesteps'], data['population'])
+plt.plot(timesteps, population)
 plt.xlabel('Timestep')
 plt.ylabel('Population')
 plt.title('Population Dynamics')
@@ -374,9 +377,9 @@ plt.show()
 
 # Plot energy and age
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-ax1.plot(data['timesteps'], data['mean_energy'])
+ax1.plot(timesteps, mean_energy)
 ax1.set_title('Mean Energy')
-ax2.plot(data['timesteps'], data['mean_age'])
+ax2.plot(timesteps, mean_age)
 ax2.set_title('Mean Age')
 plt.show()
 ```
