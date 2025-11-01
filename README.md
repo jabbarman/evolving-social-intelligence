@@ -25,6 +25,8 @@ The simulation runs on a 2D toroidal grid where agents must:
 - **Real-time Pygame visualization**: Watch evolution happen with color-coded agents and live stats
 - **Configurable parameters**: Easy YAML configs for grid size, population, mutation rates, energy dynamics
 - **Comprehensive metrics**: Population tracking, births/deaths, energy levels, ages, and more
+- **Behavioral analytics**: Movement efficiency, food discovery rates, and action entropy logged alongside population stats
+- **Lineage tracking**: Periodic ancestry snapshots with dominant lineages and diversity indices
 - **Spatial optimization**: O(1) agent lookup using grid-based spatial indexing
 
 ## Project Status
@@ -206,7 +208,20 @@ evolution:
 logging:
   log_interval: 1000           # Record metrics every N steps
   save_dir: experiments/logs
+
+behavioral_metrics:
+  enabled: true                # Toggle behavioral metric logging
+  movement_history_length: 20  # Actions considered when computing entropy
+  log_interval: 100            # Aggregate every N steps
+
+lineage_tracking:
+  enabled: true                # Toggle lineage tracking
+  save_interval: 10000         # Timesteps between ancestry snapshots
+  track_genetic_distance: false
+  max_lineage_depth: 1000
 ```
+
+The `behavioral_metrics` block controls movement tracking and food discovery aggregation, while `lineage_tracking` governs how often ancestry summaries (`lineage_stats.json`, `lineage_tree.json`) are written.
 
 ### Understanding the Visualization
 
@@ -227,6 +242,32 @@ When running with visualization enabled:
 **Controls**:
 - Press `ESC` or close window to stop simulation
 - Terminal shows periodic status updates
+
+## Behavioral Metrics
+
+The simulation now records:
+
+- **Movement patterns** – Mean, median, and standard deviation of distance per step plus Shannon movement entropy
+- **Foraging efficiency** – Mean and max food discovery rates alongside total food consumed per logging window
+- **Lineage health** – Active vs. extinct founding lines, dominant lineages, Simpson diversity index, and generation depth
+
+All metrics are written to `experiments/logs/metrics.json`, while lineage summaries live in `experiments/logs/lineage_stats.json` and `experiments/logs/lineage_tree.json`. Explore them with the new `notebooks/behavioral_analysis.ipynb` notebook or your favorite analysis tools.
+
+For long runs, the helper script `scripts/plot_behavioral_trends.py` streams the large `metrics.json` file and produces a down-sampled trend plot:
+
+```bash
+python scripts/plot_behavioral_trends.py --logs-dir experiments/logs --stride 5000
+```
+
+Install `ijson` if you want the streaming behaviour: `pip install ijson`.
+
+Lineage summaries are smaller but you can turn them into quick visuals with:
+
+```bash
+python scripts/plot_lineage_dynamics.py --logs-dir experiments/logs
+```
+
+This emits `lineage_metrics_summary.png` plus a bar chart of the latest dominant lineages.
 
 ---
 
