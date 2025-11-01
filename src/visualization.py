@@ -4,6 +4,8 @@ import pygame
 import numpy as np
 from typing import Tuple
 
+from src.analysis import calculate_behavioral_metrics
+
 
 class Visualizer:
     """Real-time visualization using Pygame."""
@@ -96,12 +98,19 @@ class Visualizer:
         if len(agents) > 0:
             avg_energy = sum(a.energy for a in agents) / len(agents)
             avg_age = sum(a.age for a in agents) / len(agents)
+            behavior = calculate_behavioral_metrics(
+                agents,
+                getattr(environment, "food_energy_value", 0.0) if environment else 0.0,
+            )
 
             stats_text = [
                 f"Timestep: {timestep}",
                 f"Population: {len(agents)}",
                 f"Avg Energy: {avg_energy:.1f}",
-                f"Avg Age: {avg_age:.0f}"
+                f"Avg Age: {avg_age:.0f}",
+                f"Mean Dist: {behavior['mean_distance_per_step']:.2f}",
+                f"Food Rate: {behavior['mean_food_discovery_rate']:.3f}",
+                f"Entropy: {behavior['mean_movement_entropy']:.2f}",
             ]
 
             y_offset = 10

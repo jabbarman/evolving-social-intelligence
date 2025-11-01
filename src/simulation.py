@@ -3,6 +3,8 @@
 import copy
 import gzip
 import pickle
+from collections import deque
+from itertools import count
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -12,6 +14,7 @@ from src.agent import Agent
 from src.analysis import Logger
 from src.environment import Environment
 from src.evolution import Evolution
+from src.lineage import LineageTracker
 
 
 class Simulation:
@@ -33,15 +36,38 @@ class Simulation:
         self.evolution: Optional[Evolution] = None
         self.logger: Optional[Logger] = None
         self.agent_grid: Dict[tuple, List[Agent]] = {}
+        self.behavioral_config = copy.deepcopy(self.config.get("behavioral_metrics", {}))
+        self.behavioral_enabled = self.behavioral_config.get("enabled", False)
+        logging_cfg = self.config.get("logging", {})
+        self.behavioral_log_interval = self.behavioral_config.get(
+            "log_interval",
+            logging_cfg.get("log_interval", 0),
+        )
+        self.movement_history_length = self.behavioral_config.get("movement_history_length", 20)
+        self._distance_samples: List[float] = []
+        self._food_consumed_this_interval: float = 0.0
+        self.lineage_config = copy.deepcopy(self.config.get("lineage_tracking", {}))
+        self.lineage_tracker = None
 
         if checkpoint_path:
             self.load_checkpoint(checkpoint_path, config_override=resume_overrides)
         else:
             self.environment = self._create_environment()
+            if self.lineage_config.get("enabled", False):
+                save_dir = logging_cfg.get("save_dir", "experiments/logs")
+                self.lineage_tracker = LineageTracker(self.lineage_config, save_dir)
             self.agents = self._create_initial_agents()
             self.evolution = self._create_evolution()
-            self.logger = Logger(self.config["logging"])
+            self.logger = Logger(
+                logging_cfg,
+                behavioral_config=self.behavioral_config,
+                lineage_config=self.lineage_config,
+            )
             self._build_agent_grid()
+            if self.lineage_tracker:
+                self.lineage_tracker.update_living_agents(self.agents, self.timestep)
+                if self.lineage_tracker.should_log(self.timestep):
+                    self.lineage_tracker.log_lineage_stats(self.timestep)
 
     def _create_environment(self) -> Environment:
         """Create environment from config."""
@@ -74,8 +100,10 @@ class Simulation:
             # Create agent with random brain
             agent = Agent(
                 position=position,
-                energy=agent_config["initial_energy"]
+                energy=agent_config["initial_energy"],
+                movement_history_length=self.movement_history_length,
             )
+            self._register_agent_lineage(agent, parent=None, birth_timestep=self.timestep)
             agents.append(agent)
 
         return agents
@@ -89,6 +117,23 @@ class Simulation:
             mutation_std=evo_config["mutation_std"]
         )
 
+    def _register_agent_lineage(self, agent: Agent, parent: Optional[Agent],
+                                birth_timestep: int) -> None:
+        """Assign lineage metadata to a newly created agent."""
+        if parent is None:
+            agent.parent_id = None
+            agent.generation = 0
+            agent.lineage_root_id = agent.id
+            if self.lineage_tracker:
+                self.lineage_tracker.register_founder(agent, birth_timestep)
+        else:
+            agent.parent_id = parent.id
+            agent.generation = parent.generation + 1
+            agent.lineage_root_id = parent.lineage_root_id
+            parent.offspring_count += 1
+            if self.lineage_tracker:
+                self.lineage_tracker.register_offspring(parent, agent, birth_timestep)
+
     def _build_agent_grid(self) -> None:
         """Build spatial index for fast agent lookup."""
         grid_size = self.environment.grid_size
@@ -99,6 +144,59 @@ class Simulation:
             if pos not in self.agent_grid:
                 self.agent_grid[pos] = []
             self.agent_grid[pos].append(agent)
+
+    def _should_log_behavioral(self) -> bool:
+        """Check if behavioral metrics should be logged this timestep."""
+        interval = self.behavioral_log_interval
+        if interval is None or interval <= 0:
+            interval = self.config.get("logging", {}).get("log_interval", 0)
+        if interval <= 0:
+            return False
+        return self.timestep % interval == 0
+
+    def _compute_behavioral_metrics(self) -> Dict[str, float]:
+        """Aggregate behavioral metrics for current logging interval."""
+        distances = np.array(self._distance_samples, dtype=float)
+        if distances.size > 0:
+            mean_distance = float(np.mean(distances))
+            std_distance = float(np.std(distances))
+            median_distance = float(np.median(distances))
+        else:
+            mean_distance = 0.0
+            std_distance = 0.0
+            median_distance = 0.0
+
+        if self.agents:
+            discovery_rates = [agent.discovery_rate for agent in self.agents]
+            mean_discovery = float(np.mean(discovery_rates))
+            max_discovery = float(np.max(discovery_rates))
+            entropies = [agent.compute_movement_entropy() for agent in self.agents]
+            mean_entropy = float(np.mean(entropies))
+            min_entropy = float(np.min(entropies))
+            max_entropy = float(np.max(entropies))
+        else:
+            mean_discovery = 0.0
+            max_discovery = 0.0
+            mean_entropy = 0.0
+            min_entropy = 0.0
+            max_entropy = 0.0
+
+        return {
+            "mean_distance_per_step": mean_distance,
+            "std_distance_per_step": std_distance,
+            "median_distance_per_step": median_distance,
+            "mean_food_discovery_rate": mean_discovery,
+            "max_food_discovery_rate": max_discovery,
+            "total_food_consumed": float(self._food_consumed_this_interval),
+            "mean_movement_entropy": mean_entropy,
+            "min_movement_entropy": min_entropy,
+            "max_movement_entropy": max_entropy,
+        }
+
+    def _reset_behavioral_accumulators(self) -> None:
+        """Reset accumulated behavioral statistics after logging."""
+        self._distance_samples.clear()
+        self._food_consumed_this_interval = 0.0
 
     def step(self) -> None:
         """Execute one simulation timestep."""
@@ -129,10 +227,17 @@ class Simulation:
             if movement_action != 4:  # If not staying
                 agent.update_energy(agent_config["movement_cost"])
 
+        if self.behavioral_enabled:
+            self._distance_samples.extend(agent.last_move_distance for agent in self.agents)
+
         # 3. Consume food
         for agent in self.agents:
             energy_gained = self.environment.consume_food(agent.position)
             agent.energy += energy_gained
+            if energy_gained > 0:
+                agent.record_food_discovery()
+                if self.behavioral_enabled:
+                    self._food_consumed_this_interval += energy_gained
 
         # 4. Update energy (base metabolic cost)
         for agent in self.agents:
@@ -149,8 +254,10 @@ class Simulation:
                     offspring = self.evolution.reproduce(
                         agent,
                         agent_config["reproduction_cost"],
-                        offspring_pos
+                        offspring_pos,
+                        movement_history_length=self.movement_history_length,
                     )
+                    self._register_agent_lineage(offspring, parent=agent, birth_timestep=self.timestep)
                     new_agents.append(offspring)
 
                     # Deduct energy from parent
@@ -164,12 +271,27 @@ class Simulation:
         # 7. Population cap
         self.agents = self.evolution.select(self.agents, sim_config["population_cap"])
 
+        if self.lineage_tracker:
+            self.lineage_tracker.update_living_agents(self.agents, self.timestep)
+            if self.lineage_tracker.should_log(self.timestep):
+                self.lineage_tracker.log_lineage_stats(self.timestep)
+
         # 8. Environment update
         self.environment.spawn_food()
 
         # 9. Logging
-        if self.timestep % self.config["logging"]["log_interval"] == 0:
-            self.logger.log_timestep(self.timestep, self.agents, self.environment)
+        logging_interval = self.config.get("logging", {}).get("log_interval", 0)
+        if logging_interval and self.timestep % logging_interval == 0:
+            behavioral_metrics = None
+            if self.behavioral_enabled and self._should_log_behavioral():
+                behavioral_metrics = self._compute_behavioral_metrics()
+                self._reset_behavioral_accumulators()
+            self.logger.log_timestep(
+                self.timestep,
+                self.agents,
+                self.environment,
+                behavioral_metrics=behavioral_metrics,
+            )
 
     def _perceive_fast(self, agent) -> np.ndarray:
         """Optimized perception using spatial indexing.
@@ -326,10 +448,22 @@ class Simulation:
         agents_state = []
         for agent in self.agents:
             agents_state.append({
+                "id": int(agent.id),
                 "position": tuple(int(v) for v in agent.position),
                 "energy": float(agent.energy),
                 "age": int(agent.age),
                 "genome": np.array(agent.genome, copy=True),
+                "parent_id": agent.parent_id,
+                "generation": int(agent.generation),
+                "lineage_root_id": int(agent.lineage_root_id),
+                "offspring_count": int(agent.offspring_count),
+                "movement_history_length": int(agent.movement_history_length),
+                "total_moves": int(agent.total_moves),
+                "food_discoveries": int(agent.food_discoveries),
+                "discovery_rate": float(agent.discovery_rate),
+                "recent_actions": list(agent.recent_actions),
+                "movement_entropy": float(agent.movement_entropy),
+                "last_move_distance": float(agent.last_move_distance),
             })
 
         logger_state = {
@@ -345,6 +479,7 @@ class Simulation:
             "agents": agents_state,
             "rng_state": np.random.get_state(),
             "logger": logger_state,
+            "lineage": self.lineage_tracker.to_state() if self.lineage_tracker else None,
         }
         return payload
 
@@ -363,6 +498,23 @@ class Simulation:
         if config_override:
             config = self._deep_update(config, config_override)
         self.config = config
+        self.behavioral_config = copy.deepcopy(self.config.get("behavioral_metrics", {}))
+        self.behavioral_enabled = self.behavioral_config.get("enabled", False)
+        logging_cfg = self.config.get("logging", {})
+        self.behavioral_log_interval = self.behavioral_config.get(
+            "log_interval",
+            logging_cfg.get("log_interval", 0),
+        )
+        self.movement_history_length = self.behavioral_config.get("movement_history_length", 20)
+        self.lineage_config = copy.deepcopy(self.config.get("lineage_tracking", {}))
+        save_dir = logging_cfg.get("save_dir", "experiments/logs")
+        self.lineage_tracker = LineageTracker.from_state(
+            self.lineage_config,
+            save_dir,
+            payload.get("lineage"),
+        )
+        self._distance_samples = []
+        self._food_consumed_this_interval = 0.0
 
         env_state = payload["environment"]
         self.environment = Environment(
@@ -374,23 +526,49 @@ class Simulation:
         self.environment.grid = np.array(env_state["grid"], copy=True)
 
         self.agents = []
+        max_agent_id = -1
         for agent_state in payload["agents"]:
             genome = np.array(agent_state["genome"], copy=True)
+            movement_history_length = agent_state.get("movement_history_length", self.movement_history_length)
             agent = Agent(
                 position=tuple(agent_state["position"]),
                 energy=agent_state["energy"],
                 genome=genome,
+                movement_history_length=movement_history_length,
+                agent_id=agent_state.get("id"),
+                parent_id=agent_state.get("parent_id"),
+                generation=agent_state.get("generation", 0),
             )
             agent.age = agent_state["age"]
+            agent.offspring_count = agent_state.get("offspring_count", 0)
+            agent.lineage_root_id = agent_state.get("lineage_root_id", agent.id)
+            agent.total_moves = agent_state.get("total_moves", 0)
+            agent.food_discoveries = agent_state.get("food_discoveries", 0)
+            agent.discovery_rate = agent_state.get("discovery_rate", 0.0)
+            agent.movement_entropy = agent_state.get("movement_entropy", 0.0)
+            agent.last_move_distance = agent_state.get("last_move_distance", 0.0)
+            recent_actions = agent_state.get("recent_actions", [])
+            agent.recent_actions = deque(recent_actions, maxlen=agent.movement_history_length)
             self.agents.append(agent)
+            max_agent_id = max(max_agent_id, agent.id)
 
         self.evolution = self._create_evolution()
-        self.logger = Logger(self.config["logging"])
+        self.logger = Logger(
+            logging_cfg,
+            behavioral_config=self.behavioral_config,
+            lineage_config=self.lineage_config,
+        )
 
         logger_state = payload.get("logger", {})
         if logger_state:
             self.logger.metrics = copy.deepcopy(logger_state.get("metrics", self.logger.metrics))
             self.logger.prev_population = logger_state.get("prev_population", len(self.agents))
+
+        next_id = max_agent_id + 1
+        if self.lineage_tracker and self.lineage_tracker.enabled:
+            next_id = max(next_id, self.lineage_tracker.next_id)
+            self.lineage_tracker.update_living_agents(self.agents, int(payload["timestep"]))
+        Agent._id_counter = count(next_id)
 
         self.timestep = int(payload["timestep"])
         np.random.set_state(payload["rng_state"])

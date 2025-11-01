@@ -1,15 +1,26 @@
 """Agent module: Agent class with sensors and actuators."""
 
+import math
+from collections import deque
+from itertools import count
+from typing import Optional, Tuple
+
 import numpy as np
-from typing import Tuple, Optional
+
 from src.brain import Brain
 
 
 class Agent:
     """An agent that can perceive, decide, and act in the environment."""
 
+    _id_counter = count()
+
     def __init__(self, position: Tuple[int, int], energy: float,
-                 genome: Optional[np.ndarray] = None, brain: Optional[Brain] = None):
+                 genome: Optional[np.ndarray] = None, brain: Optional[Brain] = None,
+                 movement_history_length: int = 20,
+                 agent_id: Optional[int] = None,
+                 parent_id: Optional[int] = None,
+                 generation: int = 0):
         """Initialize an agent.
 
         Args:
@@ -17,10 +28,19 @@ class Agent:
             energy: Initial energy level
             genome: Neural network weights (optional, random if not provided)
             brain: Brain instance (optional, created if not provided)
+            movement_history_length: Number of recent actions to track for entropy
+            agent_id: Optional explicit agent identifier (set when restoring/checkpointing)
+            parent_id: Optional parent identifier for lineage tracking
+            generation: Agent generation depth (0 for founders)
         """
         self.position = position
         self.energy = energy
         self.age = 0
+        self.id = agent_id if agent_id is not None else next(Agent._id_counter)
+        self.parent_id = parent_id
+        self.generation = generation
+        self.offspring_count = 0
+        self.lineage_root_id = self.id
 
         # Create brain if not provided
         if brain is None:
@@ -33,6 +53,13 @@ class Agent:
             self.brain.set_weights(genome)
 
         self.genome = self.brain.get_weights()
+        self.movement_history_length = movement_history_length
+        self.recent_actions = deque(maxlen=movement_history_length)
+        self.last_move_distance = 0.0
+        self.total_moves = 0
+        self.food_discoveries = 0
+        self.discovery_rate = 0.0
+        self.movement_entropy = 0.0
 
     def perceive(self, environment, agents) -> np.ndarray:
         """Get local observations (5x5 grid).
@@ -99,7 +126,8 @@ class Agent:
             action: Movement action index
             grid_size: Size of the grid for toroidal wrapping
         """
-        x, y = self.position
+        prev_x, prev_y = self.position
+        x, y = prev_x, prev_y
 
         if action == 0:  # up
             y = (y - 1) % grid_size[1]
@@ -112,6 +140,7 @@ class Agent:
         # action == 4: stay (no movement)
 
         self.position = (x, y)
+        self._record_movement(prev_x, prev_y, x, y, grid_size, action)
 
     def update_energy(self, cost: float) -> None:
         """Update energy level."""
@@ -121,3 +150,55 @@ class Agent:
     def is_alive(self) -> bool:
         """Check if agent is still alive."""
         return self.energy > 0
+
+    def record_food_discovery(self) -> None:
+        """Register that the agent has discovered/consumed food."""
+        self.food_discoveries += 1
+        self._update_discovery_rate()
+
+    def compute_movement_entropy(self) -> float:
+        """Compute Shannon entropy of recent movement directions."""
+        if not self.recent_actions:
+            self.movement_entropy = 0.0
+            return self.movement_entropy
+
+        counts = np.bincount(list(self.recent_actions), minlength=5).astype(float)
+        total = counts.sum()
+        if total == 0:
+            self.movement_entropy = 0.0
+            return self.movement_entropy
+
+        probabilities = counts[counts > 0] / total
+        entropy = float(-np.sum(probabilities * np.log2(probabilities)))
+        self.movement_entropy = entropy
+        return entropy
+
+    def _record_movement(self, prev_x: int, prev_y: int,
+                         new_x: int, new_y: int,
+                         grid_size: Tuple[int, int], action: int) -> None:
+        """Record movement statistics for behavioral metrics."""
+        dx = self._wrapped_delta(prev_x, new_x, grid_size[0])
+        dy = self._wrapped_delta(prev_y, new_y, grid_size[1])
+        distance = math.hypot(dx, dy)
+        self.last_move_distance = distance
+        self.total_moves += 1
+        self.recent_actions.append(action)
+        self._update_discovery_rate()
+
+    def _update_discovery_rate(self) -> None:
+        """Update cached food discovery rate."""
+        if self.total_moves == 0:
+            self.discovery_rate = 0.0
+        else:
+            self.discovery_rate = self.food_discoveries / self.total_moves
+
+    @staticmethod
+    def _wrapped_delta(old: int, new: int, span: int) -> int:
+        """Compute minimal wrapped delta for toroidal movement."""
+        delta = new - old
+        if abs(delta) > span // 2:
+            if delta > 0:
+                delta -= span
+            else:
+                delta += span
+        return delta

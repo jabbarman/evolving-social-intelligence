@@ -36,6 +36,14 @@ def test_checkpoint_roundtrip(tmp_path):
         assert restored.energy == pytest.approx(original.energy)
         assert restored.age == original.age
         assert np.allclose(restored.genome, original.genome)
+        assert original.id == restored.id
+        assert original.parent_id == restored.parent_id
+        assert original.generation == restored.generation
+        assert original.lineage_root_id == restored.lineage_root_id
+        assert original.total_moves == restored.total_moves
+        assert original.food_discoveries == restored.food_discoveries
+        assert restored.discovery_rate == pytest.approx(original.discovery_rate)
+        assert list(original.recent_actions) == list(restored.recent_actions)
 
 
 def test_checkpoint_restores_rng_state(tmp_path):

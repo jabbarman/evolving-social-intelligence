@@ -5,7 +5,7 @@ import gzip
 import json
 import pickle
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 
@@ -13,15 +13,33 @@ import numpy as np
 class Logger:
     """Handles logging of simulation metrics."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any],
+                 behavioral_config: Optional[Dict[str, Any]] = None,
+                 lineage_config: Optional[Dict[str, Any]] = None):
         """Initialize logger with configuration.
 
         Args:
             config: Logging configuration dictionary
+            behavioral_config: Behavioral metrics configuration
+            lineage_config: Lineage tracking configuration
         """
         self.config = config
         self.save_dir = Path(config["save_dir"])
         self.save_dir.mkdir(parents=True, exist_ok=True)
+        self.behavioral_config = behavioral_config or {}
+        self.behavioral_enabled = self.behavioral_config.get("enabled", False)
+        self.behavioral_metric_keys = [
+            "mean_distance_per_step",
+            "std_distance_per_step",
+            "median_distance_per_step",
+            "mean_food_discovery_rate",
+            "max_food_discovery_rate",
+            "total_food_consumed",
+            "mean_movement_entropy",
+            "min_movement_entropy",
+            "max_movement_entropy",
+        ]
+        self.lineage_config = lineage_config or {}
 
         self.metrics = {
             "timesteps": [],
@@ -34,15 +52,21 @@ class Logger:
             "total_food": [],
         }
 
+        if self.behavioral_enabled:
+            for key in self.behavioral_metric_keys:
+                self.metrics[key] = []
+
         self.prev_population = 0
 
-    def log_timestep(self, timestep: int, agents: List, environment=None) -> None:
+    def log_timestep(self, timestep: int, agents: List, environment=None,
+                     behavioral_metrics: Optional[Dict[str, float]] = None) -> None:
         """Log metrics for current timestep.
 
         Args:
             timestep: Current timestep
             agents: List of current agents
             environment: Environment instance (optional)
+            behavioral_metrics: Optional behavioral metrics for this timestep
         """
         self.metrics["timesteps"].append(timestep)
 
@@ -73,6 +97,15 @@ class Logger:
             self.metrics["total_food"].append(int(food_count))
         else:
             self.metrics["total_food"].append(0)
+
+        if self.behavioral_enabled:
+            metrics = behavioral_metrics or {}
+            for key in self.behavioral_metric_keys:
+                value = metrics.get(key)
+                if value is None:
+                    self.metrics[key].append(None)
+                else:
+                    self.metrics[key].append(float(value))
 
     def save_checkpoint(self, timestep: int, simulation_state: Dict[str, Any]) -> Path:
         """Save simulation checkpoint.
@@ -141,26 +174,104 @@ def calculate_population_metrics(agents: List) -> Dict[str, float]:
     }
 
 
-def calculate_behavioral_metrics(agents: List) -> Dict[str, float]:
-    """Calculate behavioral metrics.
+def calculate_behavioral_metrics(agents: List, food_energy_value: float = 0.0) -> Dict[str, float]:
+    """Calculate behavioral metrics for a snapshot of agents.
 
     Args:
         agents: List of agents
+        food_energy_value: Energy gained per food item (optional, used for totals)
 
     Returns:
-        metrics: Dictionary of metric values
+        Dictionary of behavioral metric values
     """
     if not agents:
         return {
-            "spatial_spread": 0,
-            "clustering": 0,
+            "mean_distance_per_step": 0.0,
+            "std_distance_per_step": 0.0,
+            "median_distance_per_step": 0.0,
+            "mean_food_discovery_rate": 0.0,
+            "max_food_discovery_rate": 0.0,
+            "total_food_consumed": 0.0,
+            "mean_movement_entropy": 0.0,
+            "min_movement_entropy": 0.0,
+            "max_movement_entropy": 0.0,
         }
 
-    # Calculate spatial spread (variance in positions)
-    positions = np.array([a.position for a in agents])
-    spatial_spread = np.mean(np.std(positions, axis=0))
+    distances = np.array([getattr(agent, "last_move_distance", 0.0) for agent in agents], dtype=float)
+    mean_distance = float(np.mean(distances)) if distances.size else 0.0
+    std_distance = float(np.std(distances)) if distances.size else 0.0
+    median_distance = float(np.median(distances)) if distances.size else 0.0
+
+    discovery_rates = [getattr(agent, "discovery_rate", 0.0) for agent in agents]
+    mean_food_rate = float(np.mean(discovery_rates)) if discovery_rates else 0.0
+    max_food_rate = float(np.max(discovery_rates)) if discovery_rates else 0.0
+
+    entropies = [agent.compute_movement_entropy() for agent in agents]
+    mean_entropy = float(np.mean(entropies)) if entropies else 0.0
+    min_entropy = float(np.min(entropies)) if entropies else 0.0
+    max_entropy = float(np.max(entropies)) if entropies else 0.0
+
+    total_food_events = sum(getattr(agent, "food_discoveries", 0) for agent in agents)
+    if food_energy_value > 0:
+        total_food_consumed = float(total_food_events * food_energy_value)
+    else:
+        total_food_consumed = float(total_food_events)
 
     return {
-        "spatial_spread": float(spatial_spread),
-        "clustering": 0,  # TODO: Implement clustering metric
+        "mean_distance_per_step": mean_distance,
+        "std_distance_per_step": std_distance,
+        "median_distance_per_step": median_distance,
+        "mean_food_discovery_rate": mean_food_rate,
+        "max_food_discovery_rate": max_food_rate,
+        "total_food_consumed": total_food_consumed,
+        "mean_movement_entropy": mean_entropy,
+        "min_movement_entropy": min_entropy,
+        "max_movement_entropy": max_entropy,
+    }
+
+
+def load_metrics(save_dir: Union[str, Path]) -> Dict[str, Any]:
+    """Load metrics.json from a logging directory."""
+    metrics_path = Path(save_dir) / "metrics.json"
+    if not metrics_path.exists():
+        raise FileNotFoundError(f"No metrics.json found at {metrics_path}")
+    with open(metrics_path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def load_lineage_stats(save_dir: Union[str, Path]) -> List[Dict[str, Any]]:
+    """Load lineage_stats.json if available."""
+    stats_path = Path(save_dir) / "lineage_stats.json"
+    if not stats_path.exists():
+        return []
+    with open(stats_path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def load_lineage_tree(save_dir: Union[str, Path]) -> Dict[str, Any]:
+    """Load lineage_tree.json if available."""
+    tree_path = Path(save_dir) / "lineage_tree.json"
+    if not tree_path.exists():
+        return {}
+    with open(tree_path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def summarize_lineage_stats(stats: List[Dict[str, Any]]) -> Dict[str, float]:
+    """Summarize lineage statistics across multiple snapshots."""
+    if not stats:
+        return {
+            "mean_active_lineages": 0.0,
+            "mean_lineage_diversity": 0.0,
+            "max_generation": 0.0,
+        }
+
+    active_counts = [entry.get("active_lineages", 0) for entry in stats]
+    diversity = [entry.get("lineage_diversity_index", 0.0) for entry in stats]
+    max_generation = max(entry.get("max_generation", 0) for entry in stats)
+
+    return {
+        "mean_active_lineages": float(np.mean(active_counts)),
+        "mean_lineage_diversity": float(np.mean(diversity)),
+        "max_generation": float(max_generation),
     }

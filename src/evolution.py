@@ -19,13 +19,14 @@ class Evolution:
         self.mutation_std = mutation_std
 
     def reproduce(self, parent: Agent, reproduction_cost: float,
-                  offspring_position: tuple) -> Agent:
+                  offspring_position: tuple, movement_history_length: int = 20) -> Agent:
         """Create offspring from parent with mutations.
 
         Args:
             parent: Parent agent
             reproduction_cost: Energy cost of reproduction
             offspring_position: Position for the new offspring
+            movement_history_length: Recent action buffer size for offspring
 
         Returns:
             offspring: New agent with mutated genome
@@ -37,7 +38,8 @@ class Evolution:
         offspring = Agent(
             position=offspring_position,
             energy=reproduction_cost,  # Offspring gets the energy from parent
-            genome=offspring_genome
+            genome=offspring_genome,
+            movement_history_length=movement_history_length,
         )
 
         return offspring
