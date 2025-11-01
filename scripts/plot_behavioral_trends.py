@@ -4,32 +4,22 @@
 Usage:
     python scripts/plot_behavioral_trends.py [--logs-dir experiments/logs]
 
-The script streams the fields needed from metrics.json, applies stride-based
-down-sampling plus a rolling average, and writes the resulting figures into the
-chosen logging directory. Designed to handle very large metrics files without
-loading them fully into memory.
+The script works with the new NumPy-based metrics storage (metrics.npz) and
+falls back to the legacy metrics.json if required. Down-sampling and rolling
+averages keep the plots readable even for long simulations.
 """
 
 from __future__ import annotations
 
 import argparse
-import sys
-from collections import deque
 from pathlib import Path
-from typing import Deque, Iterable, Iterator, Optional
+from typing import Iterable, Optional
 
 import matplotlib
 
 matplotlib.use("Agg")  # ensure headless rendering before importing pyplot
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
-
-try:
-    import ijson  # type: ignore
-except ImportError as exc:  # pragma: no cover - defensive guardrail
-    raise SystemExit(
-        "Missing dependency: install ijson (e.g. `pip install ijson`)."
-    ) from exc
 
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
@@ -39,7 +29,7 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         "--logs-dir",
         type=Path,
         default=Path("experiments/logs"),
-        help="Directory containing metrics.json (default: experiments/logs)",
+        help="Directory containing metrics.npz (default: experiments/logs)",
     )
     parser.add_argument(
         "--stride",
@@ -56,63 +46,96 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     return parser.parse_args(list(argv) if argv is not None else None)
 
 
-def stream_series(path: Path, key: str, stride: int) -> Iterator[float]:
-    """Yield every `stride`th numeric entry for `key` from metrics.json."""
-    with path.open("rb") as fh:
-        parser = ijson.parse(fh)
-        count = 0
-        target_prefix = f"{key}.item"
-        for prefix, event, value in parser:
-            if prefix == target_prefix and event == "number":
-                if stride <= 1 or count % stride == 0:
-                    yield float(value)
-                count += 1
-            elif prefix == key and event == "end_array":
-                break
-
-
-def rolling_mean(values: Iterable[float], window: int) -> np.ndarray:
+def rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
     """Compute rolling mean with bounded window."""
-    if window <= 1:
-        return np.fromiter(values, dtype=float)
-
-    buffer: Deque[float] = deque()
-    total = 0.0
-    averaged = []
-    for val in values:
-        buffer.append(val)
-        total += val
-        if len(buffer) > window:
-            total -= buffer.popleft()
-        averaged.append(total / len(buffer))
-    return np.array(averaged, dtype=float)
+    if values.size == 0:
+        return values
+    window = max(1, min(window, values.size))
+    if window == 1:
+        return values
+    kernel = np.ones(window, dtype=float) / window
+    return np.convolve(values, kernel, mode="valid")
 
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
     args = parse_args(argv)
-    metrics_path = args.logs_dir / "metrics.json"
-
-    if not metrics_path.exists():
-        print(f"No metrics.json found at {metrics_path}", file=sys.stderr)
-        return 1
-
     stride = max(1, args.stride)
     window = max(1, args.rolling_window)
+    logs_dir = args.logs_dir
 
-    timesteps = list(stream_series(metrics_path, "timesteps", stride))
-    mean_dist = list(stream_series(metrics_path, "mean_distance_per_step", stride))
-    mean_food = list(stream_series(metrics_path, "mean_food_discovery_rate", stride))
-    mean_entropy = list(stream_series(metrics_path, "mean_movement_entropy", stride))
+    plots_dir = logs_dir / "plots"
+    plots_dir.mkdir(parents=True, exist_ok=True)
 
-    size = min(len(timesteps), len(mean_dist), len(mean_food), len(mean_entropy))
-    if size == 0:
-        print("Not enough behavioral metrics logged to plot.", file=sys.stderr)
-        return 1
+    metrics_npz = logs_dir / "metrics.npz"
+    metrics_json = logs_dir / "metrics.json"
 
-    timesteps_arr = np.array(timesteps[:size], dtype=float)
-    mean_dist_arr = rolling_mean(mean_dist[:size], window)
-    mean_food_arr = rolling_mean(mean_food[:size], window)
-    mean_entropy_arr = rolling_mean(mean_entropy[:size], window)
+    if metrics_npz.exists():
+        with np.load(metrics_npz, allow_pickle=False, mmap_mode="r") as data:
+            raw_timesteps = np.asarray(data["timesteps"], dtype=float)
+            length = raw_timesteps.size
+
+            def _arr(key: str) -> np.ndarray:
+                if key not in data.files:
+                    return np.full(length, np.nan, dtype=float)
+                arr = np.asarray(data[key], dtype=float)
+                if arr.size != length:
+                    raise SystemExit(f"metrics field '{key}' length {arr.size} mismatches timesteps {length}")
+                return arr
+
+            raw_mean_dist = _arr("mean_distance_per_step")
+            raw_mean_food = _arr("mean_food_discovery_rate")
+            raw_mean_entropy = _arr("mean_movement_entropy")
+    elif metrics_json.exists():
+        import json
+
+        loaded = json.loads(metrics_json.read_text())
+        raw_timesteps = np.asarray(loaded.get("timesteps", []), dtype=float)
+        length = raw_timesteps.size
+
+        def _json_arr(key: str) -> np.ndarray:
+            values = loaded.get(key)
+            if values is None:
+                return np.full(length, np.nan, dtype=float)
+            arr = np.asarray([np.nan if value is None else value for value in values], dtype=float)
+            if arr.size != length:
+                raise SystemExit(f"metrics field '{key}' length {arr.size} mismatches timesteps {length}")
+            return arr
+
+        raw_mean_dist = _json_arr("mean_distance_per_step")
+        raw_mean_food = _json_arr("mean_food_discovery_rate")
+        raw_mean_entropy = _json_arr("mean_movement_entropy")
+    else:
+        raise SystemExit(f"No metrics.npz found at {metrics_npz}")
+
+    if raw_timesteps.size == 0:
+        raise SystemExit("Not enough behavioral metrics logged to plot.")
+
+    timesteps = raw_timesteps[::stride]
+    mean_dist = raw_mean_dist[::stride]
+    mean_food = raw_mean_food[::stride]
+    mean_entropy = raw_mean_entropy[::stride]
+
+    mask = np.isfinite(mean_dist) & np.isfinite(mean_food) & np.isfinite(mean_entropy)
+    timesteps = timesteps[mask]
+    mean_dist = mean_dist[mask]
+    mean_food = mean_food[mask]
+    mean_entropy = mean_entropy[mask]
+
+    if timesteps.size == 0:
+        raise SystemExit("Metrics contain no finite values to plot.")
+
+    effective_window = max(1, min(window, mean_dist.size, mean_food.size, mean_entropy.size))
+
+    mean_dist_arr = rolling_mean(mean_dist.astype(float), effective_window)
+    mean_food_arr = rolling_mean(mean_food.astype(float), effective_window)
+    mean_entropy_arr = rolling_mean(mean_entropy.astype(float), effective_window)
+
+    valid_len = min(mean_dist_arr.size, mean_food_arr.size, mean_entropy_arr.size)
+    offset = max(0, effective_window - 1)
+    timesteps_arr = timesteps[offset:offset + valid_len]
+    mean_dist_arr = mean_dist_arr[:valid_len]
+    mean_food_arr = mean_food_arr[:valid_len]
+    mean_entropy_arr = mean_entropy_arr[:valid_len]
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
     fig.suptitle("Behavioral Metrics (down-sampled)")
@@ -131,7 +154,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     axes[2].grid(alpha=0.3)
 
     fig.tight_layout(rect=[0, 0, 1, 0.97])
-    output_path = args.logs_dir / "behavioral_metrics_trends.png"
+    output_path = plots_dir / "behavioral_metrics_trends.png"
     fig.savefig(output_path, dpi=200)
     plt.close(fig)
 

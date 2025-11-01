@@ -132,17 +132,27 @@ class Logger:
         return checkpoint_path
 
     def save_metrics(self) -> None:
-        """Save collected metrics to file."""
-        metrics_file = self.save_dir / "metrics.json"
+        """Save collected metrics to compressed NumPy format."""
+        metrics_file = self.save_dir / "metrics.npz"
 
-        # Convert numpy types to native Python types for JSON serialization
-        metrics_clean = {}
+        arrays: Dict[str, np.ndarray] = {}
         for key, values in self.metrics.items():
-            metrics_clean[key] = [float(v) if isinstance(v, (np.integer, np.floating)) else v
-                                  for v in values]
+            if not values:
+                arrays[key] = np.array([], dtype=float)
+                continue
+            if any(value is None for value in values):
+                arrays[key] = np.array(
+                    [np.nan if value is None else value for value in values],
+                    dtype=float,
+                )
+            else:
+                arrays[key] = np.asarray(values)
 
-        with open(metrics_file, "w") as f:
-            json.dump(metrics_clean, f, indent=2)
+        np.savez_compressed(metrics_file, **arrays)
+
+        legacy_file = self.save_dir / "metrics.json"
+        if legacy_file.exists():
+            legacy_file.unlink()
 
 
 def calculate_population_metrics(agents: List) -> Dict[str, float]:
@@ -232,12 +242,20 @@ def calculate_behavioral_metrics(agents: List, food_energy_value: float = 0.0) -
 
 
 def load_metrics(save_dir: Union[str, Path]) -> Dict[str, Any]:
-    """Load metrics.json from a logging directory."""
-    metrics_path = Path(save_dir) / "metrics.json"
-    if not metrics_path.exists():
-        raise FileNotFoundError(f"No metrics.json found at {metrics_path}")
-    with open(metrics_path, "r", encoding="utf-8") as fh:
-        return json.load(fh)
+    """Load metrics from the logging directory (NPZ preferred, JSON fallback)."""
+    save_dir = Path(save_dir)
+    metrics_npz = save_dir / "metrics.npz"
+    if metrics_npz.exists():
+        with np.load(metrics_npz, allow_pickle=False) as data:
+            return {key: data[key] for key in data.files}
+
+    metrics_json = save_dir / "metrics.json"
+    if metrics_json.exists():
+        with open(metrics_json, "r", encoding="utf-8") as fh:
+            loaded = json.load(fh)
+        return {key: np.array(values) for key, values in loaded.items()}
+
+    raise FileNotFoundError(f"No metrics.npz or metrics.json found in {save_dir}")
 
 
 def load_lineage_stats(save_dir: Union[str, Path]) -> List[Dict[str, Any]]:

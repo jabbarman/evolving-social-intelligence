@@ -39,6 +39,8 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
     args = parse_args(argv)
+    plots_dir = args.logs_dir / "plots"
+    plots_dir.mkdir(parents=True, exist_ok=True)
     stats_path = args.logs_dir / "lineage_stats.json"
 
     if not stats_path.exists():
@@ -75,7 +77,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     axes[2].grid(alpha=0.3)
 
     fig.tight_layout(rect=[0, 0, 1, 0.97])
-    summary_path = args.logs_dir / "lineage_metrics_summary.png"
+    summary_path = plots_dir / "lineage_metrics_summary.png"
     fig.savefig(summary_path, dpi=200)
     plt.close(fig)
     print(f"Wrote {summary_path}")
@@ -105,7 +107,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             )
 
         fig.tight_layout()
-        dominant_path = args.logs_dir / "dominant_lineages_latest.png"
+        dominant_path = plots_dir / "dominant_lineages_latest.png"
         fig.savefig(dominant_path, dpi=200)
         plt.close(fig)
         print(f"Wrote {dominant_path}")
