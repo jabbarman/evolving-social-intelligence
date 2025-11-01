@@ -221,7 +221,7 @@ lineage_tracking:
   max_lineage_depth: 1000
 ```
 
-The `behavioral_metrics` block controls movement tracking and food discovery aggregation, while `lineage_tracking` governs how often ancestry summaries (`lineage_stats.json`, `lineage_tree.json`) are written.
+The `behavioral_metrics` block controls movement tracking and food discovery aggregation, while `lineage_tracking` governs how often ancestry summaries (`lineage_stats.json`, `lineage.db`) are written.
 
 ### Understanding the Visualization
 
@@ -251,7 +251,7 @@ The simulation now records:
 - **Foraging efficiency** – Mean and max food discovery rates alongside total food consumed per logging window
 - **Lineage health** – Active vs. extinct founding lines, dominant lineages, Simpson diversity index, and generation depth
 
-All metrics are written to `experiments/logs/metrics.json`, while lineage summaries live in `experiments/logs/lineage_stats.json` and `experiments/logs/lineage_tree.json`. Explore them with the new `notebooks/behavioral_analysis.ipynb` notebook or your favorite analysis tools.
+All metrics are written to `experiments/logs/metrics.json`, while lineage summaries live in `experiments/logs/lineage_stats.json` and the SQLite database `experiments/logs/lineage.db`. Explore them with the new `notebooks/behavioral_analysis.ipynb` notebook or your favorite analysis tools (or connect to the SQLite database directly for richer queries).
 
 For long runs, the helper script `scripts/plot_behavioral_trends.py` streams the large `metrics.json` file and produces a down-sampled trend plot:
 

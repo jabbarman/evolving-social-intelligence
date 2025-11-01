@@ -352,9 +352,9 @@ evolving-social-intelligence/
 │   └── analysis.py          # Updated with new visualizations
 ├── experiments/
 │   └── logs/
-│       ├── metrics.json     # Existing + behavioral metrics
-│       ├── lineage_stats.json  # NEW: Lineage data
-│       └── lineage_tree.json   # NEW: Full family tree
+│       ├── metrics.json        # Existing + behavioral metrics
+│       ├── lineage_stats.json  # Summary lineage statistics
+│       └── lineage.db          # SQLite lineage datastore
 └── notebooks/
     └── behavioral_analysis.ipynb  # NEW: Analysis examples
 ```
