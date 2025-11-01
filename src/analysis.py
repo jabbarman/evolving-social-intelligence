@@ -4,6 +4,7 @@ import copy
 import gzip
 import json
 import pickle
+import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -248,13 +249,15 @@ def load_lineage_stats(save_dir: Union[str, Path]) -> List[Dict[str, Any]]:
         return json.load(fh)
 
 
-def load_lineage_tree(save_dir: Union[str, Path]) -> Dict[str, Any]:
-    """Load lineage_tree.json if available."""
-    tree_path = Path(save_dir) / "lineage_tree.json"
-    if not tree_path.exists():
-        return {}
-    with open(tree_path, "r", encoding="utf-8") as fh:
-        return json.load(fh)
+def open_lineage_database(save_dir: Union[str, Path], *, read_only: bool = True) -> sqlite3.Connection:
+    """Open a connection to the lineage SQLite database."""
+    db_path = Path(save_dir) / "lineage.db"
+    if not db_path.exists():
+        raise FileNotFoundError(f"No lineage.db found at {db_path}")
+    if read_only:
+        uri = f"file:{db_path}?mode=ro"
+        return sqlite3.connect(uri, uri=True)
+    return sqlite3.connect(db_path)
 
 
 def summarize_lineage_stats(stats: List[Dict[str, Any]]) -> Dict[str, float]:

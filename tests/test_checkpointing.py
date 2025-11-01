@@ -24,12 +24,17 @@ def test_checkpoint_roundtrip(tmp_path):
         sim.timestep += 1
 
     checkpoint_path = sim.save_checkpoint()
+    lineage_db_path = Path(sim.logger.save_dir) / "lineage.db"
+    assert lineage_db_path.exists()
 
     resumed = Simulation.from_checkpoint(checkpoint_path)
 
     assert resumed.timestep == sim.timestep
     assert len(resumed.agents) == len(sim.agents)
     assert np.array_equal(resumed.environment.grid, sim.environment.grid)
+    resumed_lineage_db = Path(resumed.logger.save_dir) / "lineage.db"
+    assert resumed_lineage_db.exists()
+    assert resumed_lineage_db == lineage_db_path
 
     for original, restored in zip(sim.agents, resumed.agents):
         assert original.position == restored.position

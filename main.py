@@ -134,6 +134,8 @@ def main():
     finally:
         if viz:
             viz.close()
+        if sim.lineage_tracker:
+            sim.lineage_tracker.close()
 
     # Final statistics
     print(f"\n{'='*50}")

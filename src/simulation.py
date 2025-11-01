@@ -39,6 +39,7 @@ class Simulation:
         self.behavioral_config = copy.deepcopy(self.config.get("behavioral_metrics", {}))
         self.behavioral_enabled = self.behavioral_config.get("enabled", False)
         logging_cfg = self.config.get("logging", {})
+        self.save_dir = Path(logging_cfg.get("save_dir", "experiments/logs"))
         self.behavioral_log_interval = self.behavioral_config.get(
             "log_interval",
             logging_cfg.get("log_interval", 0),
@@ -47,15 +48,14 @@ class Simulation:
         self._distance_samples: List[float] = []
         self._food_consumed_this_interval: float = 0.0
         self.lineage_config = copy.deepcopy(self.config.get("lineage_tracking", {}))
-        self.lineage_tracker = None
+        self.lineage_tracker: Optional[LineageTracker] = None
 
         if checkpoint_path:
             self.load_checkpoint(checkpoint_path, config_override=resume_overrides)
         else:
             self.environment = self._create_environment()
             if self.lineage_config.get("enabled", False):
-                save_dir = logging_cfg.get("save_dir", "experiments/logs")
-                self.lineage_tracker = LineageTracker(self.lineage_config, save_dir)
+                self.lineage_tracker = LineageTracker(self.lineage_config, self.save_dir, reset_db=True)
             self.agents = self._create_initial_agents()
             self.evolution = self._create_evolution()
             self.logger = Logger(
@@ -429,8 +429,7 @@ class Simulation:
         config = copy.deepcopy(payload["config"])
         if config_override:
             config = cls._deep_update(config, config_override)
-        sim = cls(config)
-        sim._restore_from_payload(payload, config_override=config_override)
+        sim = cls(config, checkpoint_path=checkpoint_path, resume_overrides=config_override)
         return sim
 
     def _build_checkpoint_payload(self) -> Dict[str, Any]:
@@ -507,10 +506,10 @@ class Simulation:
         )
         self.movement_history_length = self.behavioral_config.get("movement_history_length", 20)
         self.lineage_config = copy.deepcopy(self.config.get("lineage_tracking", {}))
-        save_dir = logging_cfg.get("save_dir", "experiments/logs")
+        self.save_dir = Path(logging_cfg.get("save_dir", "experiments/logs"))
         self.lineage_tracker = LineageTracker.from_state(
             self.lineage_config,
-            save_dir,
+            self.save_dir,
             payload.get("lineage"),
         )
         self._distance_samples = []
@@ -566,7 +565,8 @@ class Simulation:
 
         next_id = max_agent_id + 1
         if self.lineage_tracker and self.lineage_tracker.enabled:
-            next_id = max(next_id, self.lineage_tracker.next_id)
+            tracker_max = self.lineage_tracker.max_agent_id()
+            next_id = max(next_id, tracker_max + 1)
             self.lineage_tracker.update_living_agents(self.agents, int(payload["timestep"]))
         Agent._id_counter = count(next_id)
 
