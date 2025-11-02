@@ -364,6 +364,25 @@ Each timestep:
 
 ## Analyzing Results
 
+### Notebook Exploration
+
+The repository includes `notebooks/behavioral_analysis.ipynb`, a Jupyter Notebook that walks through quick diagnostics and custom lineage queries. Jupyter notebooks let you mix Python code, narrative text, and plots in a single document—perfect for iterating on analysis without writing standalone scripts. See the [Jupyter documentation](https://docs.jupyter.org/en/stable/) or the [Project Jupyter site](https://jupyter.org/) to learn more.
+
+The bundled notebook currently demonstrates:
+
+- Loading behavioral metrics from `metrics.npz`.
+- Plotting population dynamics over time.
+- Visualizing dominant lineage share across checkpoints.
+- Inspecting descendants of a specific founder via the SQLite lineage database.
+
+To use it:
+
+1. Run a simulation (for example `python3 main.py --config configs/default.yaml --no-viz`) so metrics and lineage files populate `experiments/logs`.
+2. Launch Jupyter (`jupyter notebook` or `jupyter lab`) from the repository root and open `notebooks/behavioral_analysis.ipynb`.
+3. Execute the cells top-to-bottom, editing parameters like `FOUNDER_ID` as needed. The notebook will render inline charts and tables based on your latest run.
+
+
+
 Metrics are saved to `experiments/logs/metrics.npz` after each run:
 
 ```python
