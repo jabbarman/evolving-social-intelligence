@@ -201,12 +201,21 @@ agent:
   reproduction_threshold: 150  # Energy needed to reproduce
   reproduction_cost: 80        # Energy given to offspring
 
+brain:
+  input_size: 52
+  hidden_size: 32
+  output_size: 6
+  activation: relu
+
 evolution:
   mutation_rate: 0.1           # Fraction of weights mutated
   mutation_std: 0.1            # Size of mutations
 
 logging:
-  log_interval: 1000           # Record metrics every N steps
+  log_interval: 100            # Record metrics every N steps
+  checkpoint_interval: 10000   # Checkpoint interval
+  analysis_interval: 50000     # Analysis interval
+  visualization_fps: 30        # Visualization frame rate
   save_dir: experiments/logs
 
 behavioral_metrics:
@@ -218,8 +227,7 @@ lineage_tracking:
   enabled: true                # Toggle lineage tracking
   save_interval: 10000         # Timesteps between ancestry snapshots
   track_genetic_distance: false
-  max_lineage_depth: 1000
-```
+  max_lineage_depth: 1000```
 
 The `behavioral_metrics` block controls movement tracking and food discovery aggregation, while `lineage_tracking` governs how often ancestry summaries (`lineage_stats.json`, `lineage.db`) are written.
 
