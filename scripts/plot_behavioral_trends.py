@@ -35,7 +35,7 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         "--stride",
         type=int,
         default=5000,
-        help="Keep every Nth sample when streaming metrics (default: 5000).",
+        help="Sampling stride in timesteps (default: 5000).",
     )
     parser.add_argument(
         "--rolling-window",
@@ -59,7 +59,7 @@ def rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
     args = parse_args(argv)
-    stride = max(1, args.stride)
+    stride_steps = max(1, args.stride)
     window = max(1, args.rolling_window)
     logs_dir = args.logs_dir
 
@@ -110,10 +110,26 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     if raw_timesteps.size == 0:
         raise SystemExit("Not enough behavioral metrics logged to plot.")
 
-    timesteps = raw_timesteps[::stride]
-    mean_dist = raw_mean_dist[::stride]
-    mean_food = raw_mean_food[::stride]
-    mean_entropy = raw_mean_entropy[::stride]
+    if raw_timesteps.size > 1:
+        diffs = np.diff(raw_timesteps)
+        finite_diffs = diffs[np.isfinite(diffs)]
+        positive_diffs = finite_diffs[finite_diffs > 0]
+        if positive_diffs.size:
+            base_interval = float(np.median(positive_diffs))
+        elif finite_diffs.size:
+            base_interval = float(abs(finite_diffs[0]))
+        else:
+            base_interval = float(stride_steps)
+    else:
+        base_interval = float(stride_steps)
+    if not np.isfinite(base_interval) or base_interval <= 0:
+        base_interval = float(stride_steps)
+    index_stride = max(1, int(round(stride_steps / base_interval)))
+
+    timesteps = raw_timesteps[::index_stride]
+    mean_dist = raw_mean_dist[::index_stride]
+    mean_food = raw_mean_food[::index_stride]
+    mean_entropy = raw_mean_entropy[::index_stride]
 
     mask = np.isfinite(mean_dist) & np.isfinite(mean_food) & np.isfinite(mean_entropy)
     timesteps = timesteps[mask]
