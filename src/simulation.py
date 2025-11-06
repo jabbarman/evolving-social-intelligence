@@ -216,8 +216,17 @@ class Simulation:
         # 2. Execute movement actions
         for agent, action_output in zip(self.agents, actions):
             # Use softmax to select movement action (first 5 outputs)
-            movement_logits = action_output[:5]
-            movement_probs = np.exp(movement_logits) / np.sum(np.exp(movement_logits))
+            movement_logits = np.asarray(action_output[:5], dtype=np.float64)
+            if not np.all(np.isfinite(movement_logits)):
+                movement_probs = np.full(5, 0.2)  # Fallback to uniform if logits invalid
+            else:
+                shifted_logits = movement_logits - np.max(movement_logits)
+                exp_logits = np.exp(shifted_logits)
+                sum_exp = np.sum(exp_logits)
+                if not np.isfinite(sum_exp) or sum_exp <= 0.0:
+                    movement_probs = np.full(5, 0.2)
+                else:
+                    movement_probs = exp_logits / sum_exp
             movement_action = np.random.choice(5, p=movement_probs)
 
             # Execute movement
