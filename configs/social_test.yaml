@@ -1,21 +1,22 @@
-# Fast test configuration for quick experiments
-
+# Social test configuration - testing resource transfers
 simulation:
-  grid_size: [50, 50]  # Smaller grid
+  grid_size: [50, 50]
   max_timesteps: 10000
-  population_cap: 100  # Fewer agents
+  population_cap: 100
   initial_population: 20
   seed: 42
 
 environment:
-  food_spawn_rate: 0.02  # More food for stability
+  food_spawn_rate: 0.02
   food_energy_value: 10
 
 agent:
   initial_energy: 100
   base_metabolic_cost: 1.0
   movement_cost: 0.1
-  communication_cost: 0.5      # Energy cost for non-zero communication signals  perception_range: 2
+  communication_cost: 0.5
+  transfer_amount: 10.0
+  perception_range: 2
   reproduction_threshold: 150
   reproduction_cost: 80
 
@@ -24,14 +25,14 @@ brain:
   hidden_size: 32
   output_size: 6
   activation: relu
-  social_features: true    # Enable social brain features (memory, communication, cooperation)
+  social_features: true
 
 evolution:
   mutation_rate: 0.1
   mutation_std: 0.1
 
 logging:
-  log_interval: 100  # Log more frequently
+  log_interval: 100
   checkpoint_interval: 1000
   analysis_interval: 5000
   visualization_fps: 30

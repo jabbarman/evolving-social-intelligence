@@ -217,6 +217,41 @@ class Agent:
         """Get the current willingness to transfer resources."""
         return self.transfer_willingness
         
+    def can_transfer_to(self, other_agent: 'Agent', transfer_amount: float = 10.0) -> bool:
+        """Check if this agent can transfer energy to another agent.
+        
+        Args:
+            other_agent: Target agent for transfer
+            transfer_amount: Amount of energy to transfer
+            
+        Returns:
+            True if transfer is possible (both agents willing and enough energy)
+        """
+        # Check if both agents are willing to transfer (threshold > 0.5 for willingness)
+        self_willing = self.transfer_willingness > 0.5
+        other_willing = other_agent.transfer_willingness > 0.5
+        
+        # Check if this agent has enough energy to transfer
+        has_energy = self.energy > transfer_amount + 10  # Keep some buffer energy
+        
+        return self_willing and other_willing and has_energy
+        
+    def transfer_energy_to(self, other_agent: 'Agent', transfer_amount: float = 10.0) -> bool:
+        """Transfer energy to another agent.
+        
+        Args:
+            other_agent: Target agent
+            transfer_amount: Amount of energy to transfer
+            
+        Returns:
+            True if transfer was successful
+        """
+        if self.can_transfer_to(other_agent, transfer_amount):
+            self.energy -= transfer_amount
+            other_agent.energy += transfer_amount
+            return True
+        return False
+        
     def get_communication_energy_cost(self, communication_cost: float = 0.5) -> float:
         """Calculate energy cost for communication signal emission.
         

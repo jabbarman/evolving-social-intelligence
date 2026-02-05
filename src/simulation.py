@@ -52,6 +52,7 @@ class Simulation:
         # Social/communication tracking
         self._communication_events: List[float] = []
         self._total_communication_energy: float = 0.0
+        self._transfer_events: List[tuple] = []
         self.lineage_tracker: Optional[LineageTracker] = None
 
         if checkpoint_path:
@@ -218,12 +219,43 @@ class Simulation:
             "total_comm_energy": self._total_communication_energy,
         }
 
+        # Transfer metrics
+        if hasattr(self, '_transfer_events') and self._transfer_events:
+            transfer_count = len(self._transfer_events)
+            total_transferred = sum(amount for _, _, amount in self._transfer_events)
+            transfer_rate = transfer_count / max(len(self.agents), 1)
+        else:
+            transfer_count = 0
+            total_transferred = 0.0
+            transfer_rate = 0.0
+
+        return {
+            "mean_distance_per_step": mean_distance,
+            "std_distance_per_step": std_distance,
+            "median_distance_per_step": median_distance,
+            "mean_food_discovery_rate": mean_discovery,
+            "max_food_discovery_rate": max_discovery,
+            "total_food_consumed": float(self._food_consumed_this_interval),
+            "mean_movement_entropy": mean_entropy,
+            "min_movement_entropy": min_entropy,
+            "max_movement_entropy": max_entropy,
+            "mean_signal_strength": mean_signal,
+            "max_signal_strength": max_signal,
+            "communication_rate": comm_rate,
+            "total_comm_energy": self._total_communication_energy,
+            "transfer_count": transfer_count,
+            "total_energy_transferred": total_transferred,
+            "transfer_rate": transfer_rate,
+        }
+
     def _reset_behavioral_accumulators(self) -> None:
         """Reset accumulated behavioral statistics after logging."""
         self._distance_samples.clear()
         self._food_consumed_this_interval = 0.0
         self._communication_events.clear()
         self._total_communication_energy = 0.0
+        if hasattr(self, '_transfer_events'):
+            self._transfer_events.clear()
 
     def step(self) -> None:
         """Execute one simulation timestep."""
@@ -283,7 +315,31 @@ class Simulation:
                     self._communication_events.append(abs(agent.get_communication_signal()))
                     self._total_communication_energy += comm_cost
 
-        # 3. Consume food
+        # 3. Resource transfers (bilateral cooperation)
+        transfer_amount = agent_config.get("transfer_amount", 10.0)
+        transfer_events = []
+        
+        # Check all agent pairs for potential transfers
+        for i, agent_a in enumerate(self.agents):
+            for agent_b in self.agents[i+1:]:  # Avoid double-checking pairs
+                # Check if agents are adjacent (within 1 cell)
+                if self._are_adjacent(agent_a.position, agent_b.position):
+                    # Check if A can transfer to B
+                    if agent_a.can_transfer_to(agent_b, transfer_amount):
+                        if agent_a.transfer_energy_to(agent_b, transfer_amount):
+                            transfer_events.append((agent_a.id, agent_b.id, transfer_amount))
+                    # Check if B can transfer to A  
+                    elif agent_b.can_transfer_to(agent_a, transfer_amount):
+                        if agent_b.transfer_energy_to(agent_a, transfer_amount):
+                            transfer_events.append((agent_b.id, agent_a.id, transfer_amount))
+        
+        # Track transfer events for analytics
+        if self.behavioral_enabled and transfer_events:
+            if not hasattr(self, '_transfer_events'):
+                self._transfer_events = []
+            self._transfer_events.extend(transfer_events)
+
+        # 4. Consume food
         for agent in self.agents:
             energy_gained = self.environment.consume_food(agent.position)
             agent.energy += energy_gained
@@ -573,6 +629,7 @@ class Simulation:
         self._food_consumed_this_interval = 0.0
         self._communication_events = []
         self._total_communication_energy = 0.0
+        self._transfer_events = []
 
         env_state = payload["environment"]
         self.environment = Environment(
@@ -680,6 +737,27 @@ class Simulation:
                             signal_count += 1
                             
         return signals
+
+    def _are_adjacent(self, pos1: tuple, pos2: tuple) -> bool:
+        """Check if two positions are adjacent (within 1 cell distance).
+        
+        Args:
+            pos1: First position (x, y)
+            pos2: Second position (x, y)
+            
+        Returns:
+            True if positions are adjacent (including diagonally)
+        """
+        x1, y1 = pos1
+        x2, y2 = pos2
+        grid_size = self.environment.grid_size
+        
+        # Calculate wrapped distance in each dimension
+        dx = min(abs(x1 - x2), grid_size[0] - abs(x1 - x2))
+        dy = min(abs(y1 - y2), grid_size[1] - abs(y1 - y2))
+        
+        # Adjacent if Manhattan distance <= 1 (includes diagonal)
+        return dx <= 1 and dy <= 1 and (dx + dy) > 0
 
     @staticmethod
     def _deep_update(original: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
