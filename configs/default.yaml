@@ -15,7 +15,7 @@ agent:
   initial_energy: 100          # Starting energy
   base_metabolic_cost: 1.0     # Energy lost per timestep (always)
   movement_cost: 0.1           # Additional cost when moving
-  perception_range: 2          # Cells visible (2 = 5x5 grid)
+  communication_cost: 0.5      # Energy cost for non-zero communication signals  perception_range: 2          # Cells visible (2 = 5x5 grid)
   reproduction_threshold: 150  # Energy needed to reproduce
   reproduction_cost: 80        # Energy given to offspring
 

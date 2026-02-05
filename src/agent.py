@@ -143,14 +143,19 @@ class Agent:
             
             # Update internal state
             self.memory_state = new_memory
-            self.communication_signal = float(actions[5])  # 6th output is communication
+            
+            # Normalize and store communication signal [-1, 1]
+            raw_signal = float(actions[5])
+            self.communication_signal = np.tanh(raw_signal)  # Bounded to [-1, 1]
             self.transfer_willingness = transfer_willingness
             
             return actions
         else:
             # Legacy brain mode - simple forward pass
             actions = self.brain.forward(observations)
-            self.communication_signal = float(actions[5]) if len(actions) > 5 else 0.0
+            # Normalize communication signal for legacy brains too
+            raw_signal = float(actions[5]) if len(actions) > 5 else 0.0
+            self.communication_signal = np.tanh(raw_signal)  # Bounded to [-1, 1]
             self.transfer_willingness = 0.0
             return actions
 
@@ -211,6 +216,20 @@ class Agent:
     def get_transfer_willingness(self) -> float:
         """Get the current willingness to transfer resources."""
         return self.transfer_willingness
+        
+    def get_communication_energy_cost(self, communication_cost: float = 0.5) -> float:
+        """Calculate energy cost for communication signal emission.
+        
+        Args:
+            communication_cost: Base energy cost for non-zero signals
+            
+        Returns:
+            Energy cost based on signal strength
+        """
+        signal_strength = abs(self.communication_signal)
+        if signal_strength > 0.01:  # Small threshold to avoid tiny costs
+            return communication_cost * signal_strength
+        return 0.0
 
     def record_food_discovery(self) -> None:
         """Register that the agent has discovered/consumed food."""

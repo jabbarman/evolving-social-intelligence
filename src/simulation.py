@@ -48,6 +48,10 @@ class Simulation:
         self._distance_samples: List[float] = []
         self._food_consumed_this_interval: float = 0.0
         self.lineage_config = copy.deepcopy(self.config.get("lineage_tracking", {}))
+        
+        # Social/communication tracking
+        self._communication_events: List[float] = []
+        self._total_communication_energy: float = 0.0
         self.lineage_tracker: Optional[LineageTracker] = None
 
         if checkpoint_path:
@@ -187,6 +191,17 @@ class Simulation:
             min_entropy = 0.0
             max_entropy = 0.0
 
+        # Communication metrics
+        if self._communication_events:
+            comm_signals = np.array(self._communication_events)
+            mean_signal = float(np.mean(comm_signals))
+            max_signal = float(np.max(comm_signals))
+            comm_rate = len(self._communication_events) / max(len(self.agents), 1)
+        else:
+            mean_signal = 0.0
+            max_signal = 0.0
+            comm_rate = 0.0
+
         return {
             "mean_distance_per_step": mean_distance,
             "std_distance_per_step": std_distance,
@@ -197,12 +212,18 @@ class Simulation:
             "mean_movement_entropy": mean_entropy,
             "min_movement_entropy": min_entropy,
             "max_movement_entropy": max_entropy,
+            "mean_signal_strength": mean_signal,
+            "max_signal_strength": max_signal,
+            "communication_rate": comm_rate,
+            "total_comm_energy": self._total_communication_energy,
         }
 
     def _reset_behavioral_accumulators(self) -> None:
         """Reset accumulated behavioral statistics after logging."""
         self._distance_samples.clear()
         self._food_consumed_this_interval = 0.0
+        self._communication_events.clear()
+        self._total_communication_energy = 0.0
 
     def step(self) -> None:
         """Execute one simulation timestep."""
@@ -250,6 +271,17 @@ class Simulation:
 
         if self.behavioral_enabled:
             self._distance_samples.extend(agent.last_move_distance for agent in self.agents)
+
+        # Communication energy costs (after decision making)
+        communication_cost = agent_config.get("communication_cost", 0.5)
+        for agent in self.agents:
+            comm_cost = agent.get_communication_energy_cost(communication_cost)
+            if comm_cost > 0:
+                agent.update_energy(comm_cost)
+                # Track communication events for analytics
+                if self.behavioral_enabled:
+                    self._communication_events.append(abs(agent.get_communication_signal()))
+                    self._total_communication_energy += comm_cost
 
         # 3. Consume food
         for agent in self.agents:
@@ -539,6 +571,8 @@ class Simulation:
         )
         self._distance_samples = []
         self._food_consumed_this_interval = 0.0
+        self._communication_events = []
+        self._total_communication_energy = 0.0
 
         env_state = payload["environment"]
         self.environment = Environment(

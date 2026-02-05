@@ -15,7 +15,7 @@ agent:
   initial_energy: 100
   base_metabolic_cost: 1.0
   movement_cost: 0.1
-  perception_range: 2
+  communication_cost: 0.5      # Energy cost for non-zero communication signals  perception_range: 2
   reproduction_threshold: 150
   reproduction_cost: 80
 
