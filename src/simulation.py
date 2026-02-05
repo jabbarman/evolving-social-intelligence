@@ -355,7 +355,7 @@ class Simulation:
         # 5. Reproduction
         new_agents = []
         for agent in self.agents:
-            if agent.energy > agent_config["reproduction_threshold"]:
+            if agent.energy > agent_config.get("reproduction_threshold", 150):
                 # Find adjacent empty cell
                 offspring_pos = self._find_adjacent_position(agent.position)
                 if offspring_pos is not None:

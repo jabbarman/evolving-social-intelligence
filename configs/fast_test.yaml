@@ -1,23 +1,23 @@
-# Fast test configuration for quick experiments
+# Default configuration for evolving social intelligence simulation
 
 simulation:
-  grid_size: [50, 50]  # Smaller grid
-  max_timesteps: 10000
-  population_cap: 100  # Fewer agents
-  initial_population: 20
-  seed: 42
+  grid_size: [50, 50]        # World dimensions
+  max_timesteps: 1000000       # Default run length
+  population_cap: 100          # Max agents allowed
+  initial_population: 20       # Starting agents
+  seed: 42                     # Random seed (reproducibility)
 
 environment:
-  food_spawn_rate: 0.02  # More food for stability
-  food_energy_value: 10
+  food_spawn_rate: 0.01        # Probability per cell per timestep
+  food_energy_value: 10        # Energy gained from food
 
 agent:
-  initial_energy: 100
-  base_metabolic_cost: 1.0
-  movement_cost: 0.1
-  communication_cost: 0.5      # Energy cost for non-zero communication signals  perception_range: 2
-  transfer_amount: 10.0        # Energy amount for resource transfers  reproduction_threshold: 150
-  reproduction_cost: 80
+  initial_energy: 100          # Starting energy
+  base_metabolic_cost: 1.0     # Energy lost per timestep (always)
+  movement_cost: 0.1           # Additional cost when moving
+  communication_cost: 0.5      # Energy cost for non-zero communication signals  perception_range: 2          # Cells visible (2 = 5x5 grid)
+  transfer_amount: 10.0        # Energy amount for resource transfers  reproduction_threshold: 150  # Energy needed to reproduce
+  reproduction_cost: 80        # Energy given to offspring
 
 brain:
   input_size: 52
@@ -27,23 +27,23 @@ brain:
   social_features: false    # Enable social brain features (memory, communication, cooperation)
 
 evolution:
-  mutation_rate: 0.1
-  mutation_std: 0.1
+  mutation_rate: 0.1           # Fraction of weights mutated
+  mutation_std: 0.1            # Size of mutations
 
 logging:
-  log_interval: 100  # Log more frequently
-  checkpoint_interval: 1000
-  analysis_interval: 5000
-  visualization_fps: 30
+  log_interval: 1000           # Record metrics every N steps
+  checkpoint_interval: 10000   # Checkpoint interval
+  analysis_interval: 50000     # Analysis interval
+  visualization_fps: 30        # Visualization frame rate
   save_dir: experiments/logs
 
 behavioral_metrics:
-  enabled: true
-  movement_history_length: 20
-  log_interval: 100
+  enabled: true                # Toggle behavioral metric logging
+  movement_history_length: 20  # Actions considered when computing entropy
+  log_interval: 100            # Aggregate every N steps
 
 lineage_tracking:
-  enabled: true
-  save_interval: 10000
+  enabled: true                # Toggle lineage tracking
+  save_interval: 10000         # Timesteps between ancestry snapshots
   track_genetic_distance: false
   max_lineage_depth: 1000
