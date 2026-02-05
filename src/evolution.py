@@ -47,6 +47,10 @@ class Evolution:
             parent_id=parent.id,
             generation=parent.generation + 1
         )
+        
+        # Inherit social features from parent
+        if parent.social_features_enabled:
+            offspring.enable_social_features()
 
         return offspring
 

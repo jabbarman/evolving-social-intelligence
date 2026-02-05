@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from src.brain import Brain
+from src.brain import Brain, SocialBrain
 
 
 class Agent:
@@ -68,6 +68,11 @@ class Agent:
             self.memory_state = memory_state.copy()
         else:
             self.memory_state = np.random.randn(16) * 0.1  # Small random initialization
+            
+        # Social brain state
+        self.social_features_enabled = False
+        self.communication_signal = 0.0
+        self.transfer_willingness = 0.0
 
     def perceive(self, environment, agents) -> np.ndarray:
         """Get local observations (5x5 grid).
@@ -116,16 +121,38 @@ class Agent:
 
         return observations
 
-    def decide(self, observations: np.ndarray) -> np.ndarray:
+    def decide(self, observations: np.ndarray, signal_inputs: Optional[np.ndarray] = None) -> np.ndarray:
         """Process observations through neural network.
 
         Args:
             observations: 52-dimensional input vector
+            signal_inputs: Optional 8-dimensional communication signals from nearby agents
 
         Returns:
-            actions: 6-dimensional output (5 movement + 1 communication)
+            actions: 6-dimensional output (5 movement + 1 communication) for legacy brains,
+                    or full social output for social brains
         """
-        return self.brain.forward(observations)
+        if self.social_features_enabled and isinstance(self.brain, SocialBrain) and not self.brain.legacy_mode:
+            # Use social brain with memory and communication
+            if signal_inputs is None:
+                signal_inputs = np.zeros(8)  # No signals if not provided
+                
+            actions, new_memory, transfer_willingness = self.brain.forward_with_memory(
+                observations, self.memory_state, signal_inputs
+            )
+            
+            # Update internal state
+            self.memory_state = new_memory
+            self.communication_signal = float(actions[5])  # 6th output is communication
+            self.transfer_willingness = transfer_willingness
+            
+            return actions
+        else:
+            # Legacy brain mode - simple forward pass
+            actions = self.brain.forward(observations)
+            self.communication_signal = float(actions[5]) if len(actions) > 5 else 0.0
+            self.transfer_willingness = 0.0
+            return actions
 
     def move(self, action: int, grid_size: Tuple[int, int]) -> None:
         """Move the agent based on action (0=up, 1=down, 2=left, 3=right, 4=stay).
@@ -158,6 +185,32 @@ class Agent:
     def is_alive(self) -> bool:
         """Check if agent is still alive."""
         return self.energy > 0
+
+    def enable_social_features(self) -> None:
+        """Enable social features by converting to SocialBrain if needed."""
+        if not self.social_features_enabled:
+            if not isinstance(self.brain, SocialBrain):
+                # Convert legacy Brain to SocialBrain
+                self.brain = SocialBrain.from_legacy_brain(self.brain)
+            
+            # Set brain to social mode (non-legacy)
+            if self.brain.legacy_mode:
+                # Create new social brain with random weights
+                old_activation = self.brain.activation_name
+                self.brain = SocialBrain(legacy_mode=False, activation=old_activation)
+                # Note: This creates new random weights - could implement weight migration later
+                
+            self.social_features_enabled = True
+            # Update genome to reflect new brain weights
+            self.genome = self.brain.get_weights()
+            
+    def get_communication_signal(self) -> float:
+        """Get the current communication signal being emitted."""
+        return self.communication_signal
+        
+    def get_transfer_willingness(self) -> float:
+        """Get the current willingness to transfer resources."""
+        return self.transfer_willingness
 
     def record_food_discovery(self) -> None:
         """Register that the agent has discovered/consumed food."""

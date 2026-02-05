@@ -97,12 +97,18 @@ class Simulation:
                 np.random.randint(0, grid_size[1])
             )
 
-            # Create agent with random brain
+            # Create agent with appropriate brain type
             agent = Agent(
                 position=position,
                 energy=agent_config["initial_energy"],
                 movement_history_length=self.movement_history_length,
             )
+            
+            # Enable social features if configured
+            brain_config = self.config.get("brain", {})
+            if brain_config.get("social_features", False):
+                agent.enable_social_features()
+            
             self._register_agent_lineage(agent, parent=None, birth_timestep=self.timestep)
             agents.append(agent)
 
@@ -210,7 +216,13 @@ class Simulation:
         actions = []
         for agent in self.agents:
             observations = self._perceive_fast(agent)
-            action_output = agent.decide(observations)
+            
+            # Get communication signals from nearby agents for social brains
+            signal_inputs = None
+            if agent.social_features_enabled:
+                signal_inputs = self._get_nearby_signals(agent)
+            
+            action_output = agent.decide(observations, signal_inputs)
             actions.append(action_output)
 
         # 2. Execute movement actions
@@ -473,6 +485,9 @@ class Simulation:
                 "movement_entropy": float(agent.movement_entropy),
                 "last_move_distance": float(agent.last_move_distance),
                 "memory_state": np.array(agent.memory_state, copy=True),
+                "social_features_enabled": bool(agent.social_features_enabled),
+                "communication_signal": float(agent.communication_signal),
+                "transfer_willingness": float(agent.transfer_willingness),
             })
 
         logger_state = {
@@ -562,6 +577,14 @@ class Simulation:
             agent.discovery_rate = agent_state.get("discovery_rate", 0.0)
             agent.movement_entropy = agent_state.get("movement_entropy", 0.0)
             agent.last_move_distance = agent_state.get("last_move_distance", 0.0)
+            agent.social_features_enabled = agent_state.get("social_features_enabled", False)
+            agent.communication_signal = agent_state.get("communication_signal", 0.0)
+            agent.transfer_willingness = agent_state.get("transfer_willingness", 0.0)
+            
+            # Enable social features if needed
+            if agent.social_features_enabled:
+                agent.enable_social_features()
+                
             recent_actions = agent_state.get("recent_actions", [])
             agent.recent_actions = deque(recent_actions, maxlen=agent.movement_history_length)
             self.agents.append(agent)
@@ -589,6 +612,40 @@ class Simulation:
         self.timestep = int(payload["timestep"])
         np.random.set_state(payload["rng_state"])
         self._build_agent_grid()
+
+    def _get_nearby_signals(self, agent: Agent) -> np.ndarray:
+        """Get communication signals from nearby agents.
+        
+        Args:
+            agent: Agent to get signals for
+            
+        Returns:
+            signal_inputs: 8-dimensional array of nearby agent signals
+        """
+        signals = np.zeros(8)
+        x, y = agent.position
+        perception_range = 2
+        
+        # Collect signals from agents in perception range (5x5 grid)
+        signal_count = 0
+        for dx in range(-perception_range, perception_range + 1):
+            for dy in range(-perception_range, perception_range + 1):
+                if signal_count >= 8:
+                    break
+                    
+                # Get position with toroidal wrapping
+                pos_x = (x + dx) % self.environment.grid_size[0]
+                pos_y = (y + dy) % self.environment.grid_size[1]
+                pos = (pos_x, pos_y)
+                
+                # Check for agents at this position
+                if pos in self.agent_grid:
+                    for other_agent in self.agent_grid[pos]:
+                        if other_agent is not agent and signal_count < 8:
+                            signals[signal_count] = other_agent.get_communication_signal()
+                            signal_count += 1
+                            
+        return signals
 
     @staticmethod
     def _deep_update(original: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
