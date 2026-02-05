@@ -20,7 +20,8 @@ class Agent:
                  movement_history_length: int = 20,
                  agent_id: Optional[int] = None,
                  parent_id: Optional[int] = None,
-                 generation: int = 0):
+                 generation: int = 0,
+                 memory_state: Optional[np.ndarray] = None):
         """Initialize an agent.
 
         Args:
@@ -32,6 +33,7 @@ class Agent:
             agent_id: Optional explicit agent identifier (set when restoring/checkpointing)
             parent_id: Optional parent identifier for lineage tracking
             generation: Agent generation depth (0 for founders)
+            memory_state: Optional memory state vector (16-dim, random if not provided)
         """
         self.position = position
         self.energy = energy
@@ -60,6 +62,12 @@ class Agent:
         self.food_discoveries = 0
         self.discovery_rate = 0.0
         self.movement_entropy = 0.0
+
+        # Initialize memory state vector (16 dimensions for social recognition and temporal reasoning)
+        if memory_state is not None:
+            self.memory_state = memory_state.copy()
+        else:
+            self.memory_state = np.random.randn(16) * 0.1  # Small random initialization
 
     def perceive(self, environment, agents) -> np.ndarray:
         """Get local observations (5x5 grid).

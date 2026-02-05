@@ -472,6 +472,7 @@ class Simulation:
                 "recent_actions": list(agent.recent_actions),
                 "movement_entropy": float(agent.movement_entropy),
                 "last_move_distance": float(agent.last_move_distance),
+                "memory_state": np.array(agent.memory_state, copy=True),
             })
 
         logger_state = {
@@ -538,6 +539,11 @@ class Simulation:
         for agent_state in payload["agents"]:
             genome = np.array(agent_state["genome"], copy=True)
             movement_history_length = agent_state.get("movement_history_length", self.movement_history_length)
+            # Handle backward compatibility for memory state
+            memory_state = agent_state.get("memory_state")
+            if memory_state is not None:
+                memory_state = np.array(memory_state, copy=True)
+            
             agent = Agent(
                 position=tuple(agent_state["position"]),
                 energy=agent_state["energy"],
@@ -546,6 +552,7 @@ class Simulation:
                 agent_id=agent_state.get("id"),
                 parent_id=agent_state.get("parent_id"),
                 generation=agent_state.get("generation", 0),
+                memory_state=memory_state,
             )
             agent.age = agent_state["age"]
             agent.offspring_count = agent_state.get("offspring_count", 0)

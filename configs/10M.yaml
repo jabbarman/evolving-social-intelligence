@@ -1,0 +1,48 @@
+# Default configuration for evolving social intelligence simulation
+
+simulation:
+  grid_size: [100, 100]        # World dimensions
+  max_timesteps: 10000000      # Default run length
+  population_cap: 200          # Max agents allowed
+  initial_population: 50       # Starting agents
+  seed: 42                     # Random seed (reproducibility)
+
+environment:
+  food_spawn_rate: 0.01        # Probability per cell per timestep
+  food_energy_value: 10        # Energy gained from food
+
+agent:
+  initial_energy: 100          # Starting energy
+  base_metabolic_cost: 1.0     # Energy lost per timestep (always)
+  movement_cost: 0.1           # Additional cost when moving
+  perception_range: 2          # Cells visible (2 = 5x5 grid)
+  reproduction_threshold: 150  # Energy needed to reproduce
+  reproduction_cost: 80        # Energy given to offspring
+
+brain:
+  input_size: 52
+  hidden_size: 32
+  output_size: 6
+  activation: relu
+
+evolution:
+  mutation_rate: 0.1           # Fraction of weights mutated
+  mutation_std: 0.1            # Size of mutations
+
+logging:
+  log_interval: 1000           # Record metrics every N steps
+  checkpoint_interval: 10000   # Checkpoint interval
+  analysis_interval: 50000     # Analysis interval
+  visualization_fps: 30        # Visualization frame rate
+  save_dir: experiments/logs
+
+behavioral_metrics:
+  enabled: true                # Toggle behavioral metric logging
+  movement_history_length: 20  # Actions considered when computing entropy
+  log_interval: 100            # Aggregate every N steps
+
+lineage_tracking:
+  enabled: true                # Toggle lineage tracking
+  save_interval: 10000         # Timesteps between ancestry snapshots
+  track_genetic_distance: false
+  max_lineage_depth: 1000

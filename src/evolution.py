@@ -29,17 +29,23 @@ class Evolution:
             movement_history_length: Recent action buffer size for offspring
 
         Returns:
-            offspring: New agent with mutated genome
+            offspring: New agent with mutated genome and inherited memory
         """
         # Copy and mutate parent genome
         offspring_genome = self.mutate(parent.genome.copy())
+        
+        # Inherit memory state with small mutations (social learning + variation)
+        offspring_memory = parent.memory_state.copy() + np.random.randn(16) * 0.05
 
-        # Create offspring with mutated genome
+        # Create offspring with mutated genome and memory
         offspring = Agent(
             position=offspring_position,
             energy=reproduction_cost,  # Offspring gets the energy from parent
             genome=offspring_genome,
             movement_history_length=movement_history_length,
+            memory_state=offspring_memory,
+            parent_id=parent.id,
+            generation=parent.generation + 1
         )
 
         return offspring
