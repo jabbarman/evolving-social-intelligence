@@ -1,7 +1,7 @@
 """Brain module: Neural network implementation for agents."""
 
 import numpy as np
-from typing import Optional
+from typing import Optional, Tuple
 
 
 class Brain:
@@ -93,3 +93,72 @@ class Brain:
         """Count total number of parameters."""
         return (self.input_size * self.hidden_size + self.hidden_size +
                 self.hidden_size * self.output_size + self.output_size)
+
+
+class SocialBrain(Brain):
+    """Enhanced neural network with memory state and social I/O for agents."""
+    
+    def __init__(self, legacy_mode: bool = False, activation: str = "relu"):
+        """Initialize the social neural network.
+        
+        Args:
+            legacy_mode: If True, use original 52→32→6 architecture for compatibility
+            activation: Activation function name
+        """
+        self.legacy_mode = legacy_mode
+        
+        if legacy_mode:
+            # Original architecture for backward compatibility
+            super().__init__(input_size=52, hidden_size=32, output_size=6, activation=activation)
+        else:
+            # New social architecture: 76→48→23
+            # Inputs: 52 (environment) + 16 (memory) + 8 (signals) = 76
+            # Outputs: 6 (movement+comm) + 16 (memory update) + 1 (transfer) = 23
+            super().__init__(input_size=76, hidden_size=48, output_size=23, activation=activation)
+            
+    def forward_with_memory(self, environment_obs: np.ndarray, memory_state: np.ndarray, 
+                           signal_inputs: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
+        """Forward pass with memory and social inputs.
+        
+        Args:
+            environment_obs: Environmental observations (52-dim)
+            memory_state: Current memory state (16-dim)  
+            signal_inputs: Communication signals from nearby agents (8-dim)
+            
+        Returns:
+            actions: Movement and communication actions (6-dim)
+            new_memory: Updated memory state (16-dim)
+            transfer_willingness: Resource transfer willingness [0,1]
+        """
+        if self.legacy_mode:
+            # Legacy mode: only use environment observations
+            actions = super().forward(environment_obs)
+            # Return unchanged memory and no transfer willingness
+            return actions, memory_state, 0.0
+            
+        # Combine all inputs
+        full_input = np.concatenate([environment_obs, memory_state, signal_inputs])
+        
+        # Forward pass
+        full_output = super().forward(full_input)
+        
+        # Split outputs
+        actions = full_output[:6]  # Movement (5) + communication signal (1)
+        new_memory = np.tanh(full_output[6:22])  # Memory update (16) - bounded
+        transfer_willingness = float(1.0 / (1.0 + np.exp(-full_output[22])))  # Sigmoid for [0,1]
+        
+        return actions, new_memory, transfer_willingness
+        
+    @classmethod  
+    def from_legacy_brain(cls, legacy_brain: Brain) -> 'SocialBrain':
+        """Create a SocialBrain from an existing Brain for migration.
+        
+        Args:
+            legacy_brain: Existing Brain instance
+            
+        Returns:
+            SocialBrain instance in legacy mode with copied weights
+        """
+        social_brain = cls(legacy_mode=True, activation=legacy_brain.activation_name)
+        social_brain.set_weights(legacy_brain.get_weights())
+        return social_brain

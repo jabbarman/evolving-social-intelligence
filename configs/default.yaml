@@ -24,6 +24,7 @@ brain:
   hidden_size: 32
   output_size: 6
   activation: relu
+  social_features: false    # Enable social brain features (memory, communication, cooperation)
 
 evolution:
   mutation_rate: 0.1           # Fraction of weights mutated
