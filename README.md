@@ -6,39 +6,57 @@ An open-ended evolutionary simulation where AI agents develop intelligence throu
 
 This project creates a minimal but complete artificial life simulation where:
 
-- **Neural network agents** with simple brains (52 inputs → 32 hidden → 6 outputs) perceive their local environment and make movement decisions
-- **Evolution drives adaptation** through asexual reproduction with mutation, natural selection, and energy-based survival
-- **Emergent behaviors** arise from agents learning to forage for food, avoid starvation, and reproduce successfully
-- **Social capabilities** are built-in but dormant, waiting for environmental complexity to make them useful (communication signals, resource transfer, memory)
+- **Neural network agents** with evolved brains (legacy: 52→32→6, social: 76→48→23) perceive their environment and make decisions
+- **Evolution drives adaptation** through asexual reproduction with mutation, natural selection, and energy-based survival  
+- **Social behaviors emerge** from agents evolving communication, cooperation, and memory systems
+- **Emergent intelligence** arises from agents learning to forage, communicate, cooperate, and form social structures
 
 The simulation runs on a 2D toroidal grid where agents must:
 - Find and consume food to maintain energy
-- Manage metabolic costs of movement and survival
+- Manage metabolic costs of movement, communication, and survival
+- Form social groups for proximity benefits and resource sharing
 - Reproduce when they gather enough energy
-- Pass mutated versions of their neural networks to offspring
+- Pass evolved neural networks and memory patterns to offspring
 
-**Core Philosophy**: Rather than engineering intelligent behaviors, we provide agents with latent capabilities and let evolution discover which strategies work through millions of timesteps of trial and error.
+**Core Philosophy**: Rather than engineering intelligent behaviors, we provide agents with social capabilities and let evolution discover which strategies work through millions of timesteps of trial and error.
 
 ## Key Features
 
+### Core Simulation
 - **Fast NumPy-based simulation**: 150+ timesteps/second without visualization
-- **Real-time Pygame visualization**: Watch evolution happen with color-coded agents and live stats
-- **Configurable parameters**: Easy YAML configs for grid size, population, mutation rates, energy dynamics
-- **Comprehensive metrics**: Population tracking, births/deaths, energy levels, ages, and more
-- **Behavioral analytics**: Movement efficiency, food discovery rates, and action entropy logged alongside population stats
-- **Lineage tracking**: Periodic ancestry snapshots with dominant lineages and diversity indices
-- **Spatial optimization**: O(1) agent lookup using grid-based spatial indexing
+- **Real-time Pygame visualization**: Watch evolution happen with color-coded agents and live social metrics
+- **Configurable parameters**: Easy YAML configs for all simulation aspects
+- **Comprehensive checkpointing**: Save/resume simulations with full state preservation
+
+### Social Behavior System ✨
+- **Memory**: 16-dimensional persistent memory state that evolves across generations
+- **Communication**: Energy-costly signaling system with perception by nearby agents  
+- **Cooperation**: Bilateral resource transfer requiring mutual consent
+- **Social Clustering**: Proximity benefits encourage group formation
+- **Selection Pressure**: Resource scarcity drives evolution of social strategies
+
+### Advanced Analytics
+- **Real-time social metrics**: Communication rates, transfer events, clustering patterns
+- **Behavioral tracking**: Movement efficiency, food discovery, social interaction patterns
+- **Lineage analysis**: Ancestry tracking with genetic distance and diversity indices  
+- **Social network analysis**: Dynamic relationship mapping and community detection
 
 ## Project Status
 
-This is an **early-stage research project** (Phase 1: MVP complete). Current capabilities:
-- ✅ Basic foraging and survival
-- ✅ Evolutionary dynamics working
-- ✅ Stable populations over thousands of timesteps
-- 🚧 Social behaviors (communication, cooperation) not yet emerged
-- 🚧 Long-term experiments (millions of timesteps) in progress
+**Phase 2: Social Behaviors Complete** ✅ 
 
-Future directions: environmental complexity, predator-prey dynamics, richer social interactions, open-ended evolution.
+Current capabilities:
+- ✅ **Memory systems**: Agents maintain persistent 16-dim memory across timesteps
+- ✅ **Communication**: Agents emit and perceive signals with energy costs and neural processing
+- ✅ **Cooperation**: Bilateral resource transfers between willing agents  
+- ✅ **Social clustering**: Proximity benefits encourage group formation
+- ✅ **Selection pressure**: Configurable scarcity drives social evolution
+- ✅ **Real-time visualization**: Live display of social metrics during simulation
+- ✅ **Complete neural architecture**: Backward-compatible social brains (76→48→23)
+
+**Active Research**: Long-term experiments showing evolution of proto-languages, cooperation strategies, and social hierarchies.
+
+**Future Directions**: Advanced social analytics, environmental complexity, multi-species dynamics, open-ended evolution.
 
 ## Quick Demo
 
@@ -135,29 +153,38 @@ Metrics saved to experiments/logs
 
 ### Basic Usage
 
-**Run with real-time visualization** (30 FPS):
-```bash
-python3 main.py
+**Run with social behaviors and visualization**:
+```bash  
+python3 main.py --config configs/social_evolution.yaml
 ```
 
-**Run fast without visualization**:
+**Watch social evolution in real-time**:
 ```bash
-python3 main.py --no-viz
+python3 main.py --config configs/social_evolution.yaml --steps 5000
 ```
 
-**Run for specific number of timesteps**:
+**Fast run without visualization**:
 ```bash
-python3 main.py --steps 5000
+python3 main.py --config configs/social_evolution.yaml --no-viz --steps 10000
 ```
 
-**Use a custom configuration**:
+**Standard non-social simulation**:
 ```bash
-python3 main.py --config configs/fast_test.yaml
+python3 main.py --config configs/default.yaml
 ```
 
-**Combine options**:
+### Social Behavior Configurations
+
+For studying social evolution, use configurations with selection pressure:
+
+**Quick social test** (20 agents, social features enabled):
 ```bash
-python3 main.py --config configs/fast_test.yaml --steps 10000 --no-viz
+python3 main.py --config configs/social_test.yaml --steps 1000
+```
+
+**Full social evolution** (resource scarcity drives cooperation):
+```bash
+python3 main.py --config configs/social_evolution.yaml --steps 50000
 ```
 
 ### Checkpointing and Resuming Runs
@@ -174,60 +201,40 @@ The configuration stored in the checkpoint is restored automatically. Values und
 
 ### Available Configurations
 
-- `configs/default.yaml` - Standard setup (100x100 grid, 50 agents, 200 cap)
-- `configs/fast_test.yaml` - Smaller setup for quick experiments (50x50 grid, 20 agents, 100 cap)
+- `configs/default.yaml` - Standard setup (100×100 grid, 50 agents) with social features disabled
+- `configs/fast_test.yaml` - Quick testing (50×50 grid, 20 agents) for development
+- `configs/social_test.yaml` - Social features enabled with standard parameters
+- `configs/social_evolution.yaml` - **Recommended**: Resource scarcity + social benefits for evolution
 
 ### Creating Custom Configs
 
 Copy and modify an existing config file:
 
 ```yaml
+# Example social evolution configuration
 simulation:
-  grid_size: [100, 100]        # World dimensions
-  max_timesteps: 1000000       # Default run length
-  population_cap: 200          # Max agents allowed
-  initial_population: 50       # Starting agents
-  seed: 42                     # Random seed (reproducibility)
+  grid_size: [80, 80]           # Smaller grid = more interaction
+  population_cap: 150           # Lower cap = more competition  
+  initial_population: 30        # Start smaller for selection pressure
 
 environment:
-  food_spawn_rate: 0.01        # Probability per cell per timestep
-  food_energy_value: 10        # Energy gained from food
+  food_spawn_rate: 0.005        # Scarcity drives cooperation
+  food_energy_value: 15         # Higher value rewards finding food
 
 agent:
-  initial_energy: 100          # Starting energy
-  base_metabolic_cost: 1.0     # Energy lost per timestep (always)
-  movement_cost: 0.1           # Additional cost when moving
-  perception_range: 2          # Cells visible (2 = 5x5 grid)
-  reproduction_threshold: 150  # Energy needed to reproduce
-  reproduction_cost: 80        # Energy given to offspring
+  base_metabolic_cost: 1.2      # Higher survival pressure
+  communication_cost: 0.3       # Affordable communication
+  transfer_amount: 15.0         # Beneficial cooperation amounts
+  proximity_bonus: 2.0          # Energy reward for social clustering
+  proximity_range: 1            # Range for proximity benefits
 
 brain:
-  input_size: 52
-  hidden_size: 32
-  output_size: 6
-  activation: relu
-
-evolution:
-  mutation_rate: 0.1           # Fraction of weights mutated
-  mutation_std: 0.1            # Size of mutations
-
-logging:
-  log_interval: 1000           # Record metrics every N steps
-  checkpoint_interval: 10000   # Checkpoint interval
-  analysis_interval: 50000     # Analysis interval
-  visualization_fps: 30        # Visualization frame rate
-  save_dir: experiments/logs
+  social_features: true         # Enable social behaviors
+  input_size: 76               # Auto-configured for social brains
+  output_size: 23              # Actions + memory + cooperation
 
 behavioral_metrics:
-  enabled: true                # Toggle behavioral metric logging
-  movement_history_length: 20  # Actions considered when computing entropy
-  log_interval: 100            # Aggregate every N steps
-
-lineage_tracking:
-  enabled: true                # Toggle lineage tracking
-  save_interval: 10000         # Timesteps between ancestry snapshots
-  track_genetic_distance: false
-  max_lineage_depth: 1000
+  log_interval: 50             # More frequent social metric updates
 ```
 
 The `behavioral_metrics` block controls movement tracking and food discovery aggregation, while `lineage_tracking` governs how often ancestry summaries (`lineage_stats.json`, `lineage.db`) are written.
@@ -237,28 +244,99 @@ The `behavioral_metrics` block controls movement tracking and food discovery agg
 When running with visualization enabled:
 
 - **Black background**: Empty space
-- **Green squares**: Food resources
+- **Green squares**: Food resources  
 - **Colored circles**: Agents
   - Blue = Low energy (near starvation)
   - Purple/Pink = Medium energy
   - Red = High energy (ready to reproduce)
-- **Top-left overlay**: Real-time statistics
-  - Timestep counter
-  - Current population
-  - Average energy across all agents
-  - Average age in timesteps
+- **Real-time social metrics** (top-left overlay):
+  - Timestep and population counters
+  - Energy and age statistics  
+  - Movement patterns and food rates
+  - **Communication rate**: Frequency of signal emission
+  - **Signal strength**: Average communication intensity
+  - **Transfer count**: Resource sharing events per interval
+  - **Transfer rate**: Cooperation frequency per agent
+  - **Proximity bonuses**: Energy gained from social clustering
 
 **Controls**:
 - Press `ESC` or close window to stop simulation
-- Terminal shows periodic status updates
+- Terminal shows periodic status updates with social behavior statistics
+
+## Social Behavior System
+
+### Agent Capabilities
+
+**Memory System**:
+- 16-dimensional persistent memory state
+- Inherited from parents with mutations during reproduction  
+- Updated each timestep via neural network outputs
+- Enables recognition, temporal reasoning, and learning
+
+**Communication**:
+- Agents emit signals via 6th neural output (normalized to [-1,1])  
+- Energy cost: 0.5 × |signal strength| per timestep
+- Signals perceived by agents within 5×5 perception grid
+- 8-dimensional signal input vector processed by social brain
+
+**Cooperation**:
+- Bilateral resource transfer requiring mutual consent (>0.5 willingness)
+- Agents must be adjacent (within 1 cell) to transfer energy
+- Configurable transfer amount (default: 10-15 energy units)
+- Transfer events tracked for behavioral analytics
+
+**Social Clustering**:
+- Proximity bonuses reward agents for staying near others
+- Energy bonus: 2.0 × nearby_agents × 0.5 (diminishing returns)
+- Encourages group formation and social organization
+- Balances clustering benefits vs overcrowding costs
+
+### Neural Architecture
+
+**Legacy Brain** (backward compatibility):
+- 52 inputs → 32 hidden → 6 outputs (~1,700 parameters)
+- Environmental perception only (food + agents + energy + age)
+
+**Social Brain** (new capabilities):
+- 76 inputs → 48 hidden → 23 outputs (~4,800 parameters)
+- **Inputs**: 52 environmental + 16 memory + 8 communication signals
+- **Outputs**: 6 actions + 16 memory update + 1 transfer willingness
+- Full backward compatibility with automatic conversion
+
+### Evolution of Social Behaviors
+
+**Selection Pressure**:
+- Resource scarcity makes cooperation advantageous
+- Communication costs must be offset by survival benefits
+- Memory allows agents to recognize and remember interactions
+- Proximity benefits reward social agents over solitary ones
+
+**Emergent Patterns**:
+- Signal evolution: Random → meaningful communication patterns
+- Cooperation networks: Reciprocal altruism and kin selection
+- Memory specialization: Recognition systems and behavioral templates  
+- Social hierarchies: Leadership, following, and group coordination
 
 ## Behavioral Metrics
 
-The simulation now records:
+The simulation records comprehensive behavioral and social metrics:
 
-- **Movement patterns** – Mean, median, and standard deviation of distance per step plus Shannon movement entropy
-- **Foraging efficiency** – Mean and max food discovery rates alongside total food consumed per logging window
-- **Lineage health** – Active vs. extinct founding lines, dominant lineages, Simpson diversity index, and generation depth
+**Basic Behaviors**:
+- **Movement patterns**: Distance per step, movement entropy, exploration efficiency
+- **Foraging success**: Food discovery rates, consumption patterns, energy management
+- **Population dynamics**: Births, deaths, age distributions, lineage tracking
+
+**Social Behaviors**:
+- **Communication metrics**: Signal emission rates, signal strength evolution, energy costs
+- **Cooperation tracking**: Transfer events, reciprocal altruism patterns, resource sharing networks
+- **Social clustering**: Proximity bonuses, group formation, spatial organization patterns
+- **Memory evolution**: Memory state divergence, specialization patterns, inheritance dynamics
+
+**Advanced Analytics**:
+- **Social network analysis**: Dynamic relationship graphs, centrality measures, community detection
+- **Behavioral synchronization**: Coordinated movement, collective decision-making patterns  
+- **Signal semantics**: Communication pattern analysis, proto-language emergence detection
+- **Evolutionary pressure**: Selection gradients, fitness landscapes, adaptive radiations
 
 All metrics are written to a compressed archive at `experiments/logs/metrics.npz`, while lineage summaries live in `experiments/logs/lineage_stats.json` and the SQLite database `experiments/logs/lineage.db`. Explore them with the new `notebooks/behavioral_analysis.ipynb` notebook or your favorite analysis tools (or connect to the SQLite database directly for richer queries).
 
@@ -284,25 +362,28 @@ This emits `lineage_metrics_summary.png` plus a bar chart of the latest dominant
 
 ```
 evolving-social-intelligence/
-├── README.md                    # This file
+├── README.md                    # This file  
 ├── requirements.txt             # Python dependencies
 ├── setup.py                     # Package installation
 ├── main.py                      # Entry point
 ├── configs/                     # Configuration files
-│   ├── default.yaml
-│   └── fast_test.yaml
+│   ├── default.yaml            # Standard non-social simulation
+│   ├── fast_test.yaml          # Quick testing configuration
+│   ├── social_test.yaml        # Social features enabled
+│   └── social_evolution.yaml   # Resource scarcity + social evolution
 ├── src/                         # Source code
 │   ├── __init__.py
 │   ├── environment.py           # Grid world, food spawning
-│   ├── agent.py                 # Agent sensors and actuators
-│   ├── brain.py                 # Neural network (NumPy)
-│   ├── evolution.py             # Reproduction, mutation, selection
-│   ├── simulation.py            # Main simulation loop
-│   ├── visualization.py         # Pygame rendering
-│   └── analysis.py              # Metrics and logging
+│   ├── agent.py                 # Agent sensors, memory, social behaviors
+│   ├── brain.py                 # Neural networks (legacy + social)
+│   ├── evolution.py             # Reproduction, mutation, inheritance
+│   ├── simulation.py            # Main loop with social mechanics
+│   ├── visualization.py         # Pygame rendering + social metrics
+│   ├── analysis.py              # Comprehensive behavioral metrics
+│   └── lineage.py              # Lineage tracking and ancestry analysis
 ├── experiments/
-│   └── logs/                    # Saved metrics (NumPy) & lineage DB
-├── tests/                       # Unit tests (TODO)
+│   └── logs/                    # Metrics, checkpoints, social analytics
+├── tests/                       # Unit tests
 └── docs/                        # Documentation
 ```
 
@@ -313,52 +394,67 @@ evolving-social-intelligence/
 ### Agent Architecture
 
 Each agent has:
-- **Position** on the 2D grid
-- **Energy** level (dies when ≤ 0)
+- **Position** on the 2D toroidal grid
+- **Energy** level (dies when ≤ 0)  
 - **Age** in timesteps
-- **Neural network brain** (genome) with ~1,700 parameters
+- **Memory state** (16-dimensional persistent vector)
+- **Social capabilities** (communication signal, transfer willingness)
+- **Neural network brain** with 1,700-4,800 parameters (legacy vs social)
 
-**Perception** (52 inputs):
-- 5x5 grid of food locations (25 values)
-- 5x5 grid of nearby agents (25 values)
+**Environmental Perception** (52 inputs):
+- 5×5 grid of food locations (25 values)
+- 5×5 grid of nearby agents (25 values)  
 - Own energy level (normalized)
 - Own age (normalized)
 
-**Actions** (6 outputs):
-- 5 movement actions (up, down, left, right, stay) - selected via softmax
-- 1 communication signal (currently unused)
+**Social Perception** (additional 24 inputs for social brains):
+- Memory state from previous timestep (16 values)
+- Communication signals from nearby agents (8 values)
+
+**Actions** (6-23 outputs):
+- 5 movement actions (up, down, left, right, stay) - softmax selection
+- 1 communication signal (tanh normalized to [-1,1])
+- **Social brains also output**:
+  - 16 memory state updates
+  - 1 transfer willingness value [0,1]
 
 ### Simulation Loop
 
 Each timestep:
-1. **Perception**: All agents observe local 5x5 area
-2. **Decision**: Neural networks process observations → actions
-3. **Movement**: Agents move based on network outputs
-4. **Consumption**: Agents on food cells gain energy
-5. **Metabolism**: All agents lose energy (base + movement costs)
-6. **Reproduction**: Agents with energy > 150 create mutated offspring
-7. **Death**: Agents with energy ≤ 0 are removed
-8. **Selection**: Oldest agents removed if population > cap
-9. **Environment**: New food spawns probabilistically
-10. **Logging**: Metrics recorded at intervals
+1. **Perception**: All agents observe local 5×5 area + social signals
+2. **Decision**: Neural networks process observations + memory → actions + memory update
+3. **Communication**: Signal emission with energy costs, signal gathering for perception  
+4. **Movement**: Agents move based on network outputs with energy costs
+5. **Social interactions**: Resource transfers between willing adjacent agents
+6. **Proximity benefits**: Energy bonuses for agents near others (social clustering)
+7. **Consumption**: Agents on food cells gain energy  
+8. **Metabolism**: All agents lose base metabolic energy
+9. **Reproduction**: High-energy agents create mutated offspring with inherited memory
+10. **Death**: Agents with energy ≤ 0 are removed
+11. **Selection**: Population cap enforcement (oldest agents removed first)
+12. **Environment**: New food spawns probabilistically
+13. **Logging**: Social and behavioral metrics recorded at intervals
 
 ### Evolutionary Mechanics
 
 **Reproduction**:
-- Triggered when agent energy > reproduction threshold (150)
-- Parent loses 80 energy, offspring gets 80 energy
-- Offspring placed in adjacent empty cell
-- Offspring genome = parent genome + mutations
+- Triggered when agent energy > reproduction threshold (130-150)
+- Parent loses reproduction cost (60-80 energy), offspring gets same amount
+- Offspring placed in adjacent empty cell with inherited memory state
+- Offspring genome = parent genome + mutations + memory inheritance
 
 **Mutation**:
-- 10% of neural network weights are mutated
-- Gaussian noise added: N(0, 0.1)
-- Allows exploration of strategy space
+- 10-12% of neural network weights are mutated (configurable)
+- Gaussian noise added: N(0, 0.08-0.1) for fine-tuning
+- Memory state inherits with small random perturbations  
+- Allows exploration of strategy and memory patterns
 
-**Selection**:
-- Natural: agents die when energy depletes
-- Population cap: oldest agents removed if over limit
-- No explicit fitness function beyond survival
+**Selection Pressure**:
+- **Natural selection**: agents die when energy depletes
+- **Resource competition**: scarce food rewards efficient foragers
+- **Social advantages**: communication and cooperation provide survival benefits
+- **Population pressure**: oldest agents removed if over capacity
+- **Energy economics**: communication costs balanced against cooperation benefits
 
 ---
 
@@ -413,14 +509,17 @@ plt.show()
 ```
 
 Tracked metrics:
-- `timesteps` - When metrics were recorded
-- `population` - Number of living agents
-- `births` - New agents created
-- `deaths` - Agents that died
-- `mean_energy` - Average energy level
-- `mean_age` - Average age in timesteps
-- `max_age` - Oldest agent
-- `total_food` - Food on grid
+- **Population dynamics**: `timesteps`, `population`, `births`, `deaths`
+- **Energy and lifespan**: `mean_energy`, `mean_age`, `max_age`
+- **Environmental**: `total_food` availability
+- **Movement patterns**: `mean_distance_per_step`, `movement_entropy`
+- **Foraging**: `mean_food_discovery_rate`, `total_food_consumed`
+- **Social behaviors**: 
+  - `communication_rate` - Signal emission frequency per agent
+  - `mean_signal_strength` - Average communication intensity  
+  - `transfer_count` - Resource sharing events per logging interval
+  - `transfer_rate` - Cooperation frequency per agent per timestep
+  - `proximity_bonuses` - Total energy gained from social clustering
 
 ---
 
@@ -434,10 +533,17 @@ Tracked metrics:
 - Reduce grid size or population in config
 - Check that numpy is using optimized BLAS libraries
 
-**Population goes extinct immediately**
-- Increase `food_spawn_rate` in config (try 0.02 or higher)
-- Lower `base_metabolic_cost` (try 0.5)
+**Population goes extinct quickly**
+- Use `configs/social_evolution.yaml` for balanced resource scarcity
+- Increase `food_spawn_rate` for less competitive environments (try 0.01)
+- Lower `base_metabolic_cost` (try 1.0) for easier survival
 - Increase `initial_population` to improve survival chances
+
+**Social behaviors aren't emerging**
+- Ensure `brain.social_features: true` in configuration
+- Use `configs/social_evolution.yaml` for proper selection pressure
+- Run longer simulations (10k+ timesteps) for evolutionary time scales
+- Check that `proximity_bonus` > 0 to reward social clustering
 
 **"TypeError: Object of type int64 is not JSON serializable"**
 - This should be fixed in the latest version
@@ -452,13 +558,25 @@ Tracked metrics:
 
 ## Contributing
 
-This is an open research project and contributions are welcome! Areas where help is needed:
+This is an open research project and contributions are welcome! Areas of active development:
 
-- **Performance optimization**: Vectorization, GPU acceleration
-- **Analysis tools**: Visualization of behavioral patterns, lineage trees
-- **Experiments**: Testing different parameters, environments
-- **Documentation**: Tutorials, examples, explaining emergent behaviors
-- **Features**: New agent capabilities, environmental complexity
+**Social Evolution Research**:
+- **Communication semantics**: Analysis of signal meaning and proto-language emergence
+- **Cooperation networks**: Reciprocal altruism patterns and kin selection dynamics  
+- **Memory specialization**: Recognition systems and behavioral template evolution
+- **Social hierarchies**: Leadership emergence and group coordination patterns
+
+**Technical Improvements**:
+- **Performance optimization**: Vectorization of social computations, GPU acceleration
+- **Advanced analytics**: Social network analysis, signal clustering, behavioral synchronization
+- **Visualization enhancements**: Signal visualization, transfer animations, social network overlays
+- **Multi-species dynamics**: Predator-prey systems with different social capabilities
+
+**Analysis and Tools**:
+- **Behavioral pattern detection**: Automated discovery of emergent social behaviors
+- **Long-term studies**: Multi-million timestep experiments with social evolution tracking
+- **Comparative studies**: Social vs asocial populations, different selection pressures
+- **Interactive analysis**: Real-time manipulation of social parameters during simulation
 
 Please open an issue to discuss before starting major changes.
 
