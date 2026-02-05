@@ -111,6 +111,10 @@ class Visualizer:
                 f"Mean Dist: {behavior['mean_distance_per_step']:.2f}",
                 f"Food Rate: {behavior['mean_food_discovery_rate']:.3f}",
                 f"Entropy: {behavior['mean_movement_entropy']:.2f}",
+                f"Comm Rate: {behavior.get('communication_rate', 0):.3f}",
+                f"Signal Str: {behavior.get('mean_signal_strength', 0):.2f}",
+                f"Transfers: {behavior.get('transfer_count', 0)}",
+                f"Transfer Rate: {behavior.get('transfer_rate', 0):.3f}",
             ]
 
             y_offset = 10
