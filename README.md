@@ -60,8 +60,34 @@ Current capabilities:
 
 ## Quick Demo
 
-![Simulation Screenshot](docs/simulation-screenshot.png)
-*Agents (colored circles) navigate a grid world, consuming food (green squares) and evolving over time.*
+### Social Evolution in Action
+
+*🎬 Animated demo coming soon! See [instructions](docs/create-animated-demo.md) for creating your own GIF.*
+
+![Demo Screenshot](docs/demo-step-000.png)
+*Social intelligence simulation showing agents (colored circles) with real-time social metrics. Agents evolve memory, communication, and cooperation over time.*
+
+**What the simulation shows:**
+- **Colored circles**: Agents with evolving neural networks (blue=low energy, red=high energy)
+- **Green squares**: Food resources that agents compete for and share information about
+- **Social metrics** (top-left): Live tracking of communication rates, resource transfers, and clustering behavior
+- **Emergent behaviors**: Over time, agents develop clustering, signaling, and cooperation strategies
+
+### Run Your Own Demo
+
+**Start social evolution experiment:**
+```bash
+python3 main.py --config configs/social_evolution.yaml --steps 2000
+```
+
+**Quick test with social behaviors:**
+```bash  
+python3 main.py --config configs/social_test.yaml --steps 500
+```
+
+**Create your own animated GIF:** Follow the [demo creation guide](docs/create-animated-demo.md)
+
+> **💡 Tip**: Social behaviors emerge gradually over 500-2000+ timesteps as agents evolve communication and cooperation strategies through natural selection. Watch the social metrics change as evolution discovers beneficial strategies!
 
 ---
 ## System Dependencies
