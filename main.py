@@ -87,8 +87,9 @@ def main():
                 sim.timestep += 1
                 sim._maybe_save_checkpoint()
 
-                # Render visualization
-                running = viz.render(sim.environment, sim.agents, sim.timestep)
+                # Render visualization with real-time metrics
+                current_metrics = sim.get_current_behavioral_metrics()
+                running = viz.render(sim.environment, sim.agents, sim.timestep, current_metrics)
 
                 # Print status every 1k steps
                 if sim.timestep % 1000 == 0:

@@ -156,7 +156,51 @@ class Simulation:
                 self.agent_grid[pos] = []
             self.agent_grid[pos].append(agent)
 
+    def get_current_behavioral_metrics(self) -> Dict[str, float]:
+        """Get current behavioral metrics for real-time display (not logging interval dependent)."""
+        if not self.agents:
+            return {}
+            
+        # Calculate basic metrics from current agent state
+        distances = np.array([getattr(agent, "last_move_distance", 0.0) for agent in self.agents], dtype=float)
+        mean_distance = float(np.mean(distances)) if distances.size else 0.0
+        
+        discovery_rates = [getattr(agent, "discovery_rate", 0.0) for agent in self.agents]
+        mean_discovery = float(np.mean(discovery_rates)) if discovery_rates else 0.0
+        
+        entropies = [agent.compute_movement_entropy() for agent in self.agents]
+        mean_entropy = float(np.mean(entropies)) if entropies else 0.0
+        
+        # Get accumulated social metrics for current interval
+        if self._communication_events:
+            comm_rate = len(self._communication_events) / max(len(self.agents), 1)
+            mean_signal = float(np.mean(self._communication_events))
+        else:
+            comm_rate = 0.0
+            mean_signal = 0.0
+            
+        transfer_count = len(getattr(self, '_transfer_events', []))
+        transfer_rate = transfer_count / max(len(self.agents), 1) if transfer_count else 0.0
+        
+        proximity_bonuses = sum(getattr(self, '_proximity_bonuses', []))
+        
+        return {
+            "mean_distance_per_step": mean_distance,
+            "mean_food_discovery_rate": mean_discovery, 
+            "mean_movement_entropy": mean_entropy,
+            "communication_rate": comm_rate,
+            "mean_signal_strength": mean_signal,
+            "transfer_count": transfer_count,
+            "transfer_rate": transfer_rate,
+            "proximity_bonuses": proximity_bonuses,
+        }
+        
     def _should_log_behavioral(self) -> bool:
+        """Check if behavioral metrics should be logged this timestep."""
+        if not self.behavioral_config.get("enabled", False):
+            return False
+        log_interval = self.behavioral_config.get("log_interval", 100)
+        return (self.timestep % log_interval) == 0
         """Check if behavioral metrics should be logged this timestep."""
         interval = self.behavioral_log_interval
         if interval is None or interval <= 0:

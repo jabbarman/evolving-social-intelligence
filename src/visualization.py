@@ -2,7 +2,7 @@
 
 import pygame
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Dict, Optional
 
 from src.analysis import calculate_behavioral_metrics
 
@@ -41,13 +41,17 @@ class Visualizer:
         # Font for stats
         self.font = pygame.font.Font(None, 24)
 
-    def render(self, environment, agents, timestep: int = 0) -> bool:
+    def render(self, environment, agents, timestep: int = 0, simulation_metrics: Dict[str, float] = None) -> bool:
         """Render current state of simulation.
 
         Args:
             environment: Environment instance
             agents: List of agents
             timestep: Current timestep
+            simulation_metrics: Optional dict of social metrics from simulation
+            
+        Returns:
+            False if user wants to quit, True otherwise
 
         Returns:
             continue_running: False if user closed window
@@ -98,23 +102,29 @@ class Visualizer:
         if len(agents) > 0:
             avg_energy = sum(a.energy for a in agents) / len(agents)
             avg_age = sum(a.age for a in agents) / len(agents)
-            behavior = calculate_behavioral_metrics(
-                agents,
-                getattr(environment, "food_energy_value", 0.0) if environment else 0.0,
-            )
+            
+            # Use simulation metrics if available, otherwise calculate basic ones
+            if simulation_metrics:
+                behavior = simulation_metrics
+            else:
+                behavior = calculate_behavioral_metrics(
+                    agents,
+                    getattr(environment, "food_energy_value", 0.0) if environment else 0.0,
+                )
 
             stats_text = [
                 f"Timestep: {timestep}",
                 f"Population: {len(agents)}",
                 f"Avg Energy: {avg_energy:.1f}",
                 f"Avg Age: {avg_age:.0f}",
-                f"Mean Dist: {behavior['mean_distance_per_step']:.2f}",
-                f"Food Rate: {behavior['mean_food_discovery_rate']:.3f}",
-                f"Entropy: {behavior['mean_movement_entropy']:.2f}",
+                f"Mean Dist: {behavior.get('mean_distance_per_step', 0):.2f}",
+                f"Food Rate: {behavior.get('mean_food_discovery_rate', 0):.3f}",
+                f"Entropy: {behavior.get('mean_movement_entropy', 0):.2f}",
                 f"Comm Rate: {behavior.get('communication_rate', 0):.3f}",
                 f"Signal Str: {behavior.get('mean_signal_strength', 0):.2f}",
                 f"Transfers: {behavior.get('transfer_count', 0)}",
                 f"Transfer Rate: {behavior.get('transfer_rate', 0):.3f}",
+                f"Prox Bonus: {behavior.get('proximity_bonuses', 0):.1f}",
             ]
 
             y_offset = 10
