@@ -6,7 +6,7 @@ import pickle
 from collections import deque
 from itertools import count
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 import numpy as np
 
@@ -246,6 +246,8 @@ class Simulation:
             "transfer_count": transfer_count,
             "total_energy_transferred": total_transferred,
             "transfer_rate": transfer_rate,
+            "proximity_bonuses": sum(getattr(self, '_proximity_bonuses', [])),
+            "avg_proximity_bonus": np.mean(getattr(self, '_proximity_bonuses', [0])),
         }
 
     def _reset_behavioral_accumulators(self) -> None:
@@ -256,6 +258,8 @@ class Simulation:
         self._total_communication_energy = 0.0
         if hasattr(self, '_transfer_events'):
             self._transfer_events.clear()
+        if hasattr(self, '_proximity_bonuses'):
+            self._proximity_bonuses.clear()
 
     def step(self) -> None:
         """Execute one simulation timestep."""
@@ -339,7 +343,51 @@ class Simulation:
                 self._transfer_events = []
             self._transfer_events.extend(transfer_events)
 
-        # 4. Consume food
+        # 4. Proximity benefits (social clustering rewards)
+        proximity_bonus = agent_config.get("proximity_bonus", 0.0)
+        proximity_range = agent_config.get("proximity_range", 1)
+        
+        if proximity_bonus > 0:
+            for agent in self.agents:
+                nearby_count = 0
+                for other in self.agents:
+                    if other != agent:
+                        distance = self._calculate_distance(agent.position, other.position)
+                        if distance <= proximity_range:
+                            nearby_count += 1
+                
+                # Energy bonus scales with nearby agents (diminishing returns)
+                if nearby_count > 0:
+                    bonus = proximity_bonus * min(nearby_count, 3) * 0.5  # Cap at 3 agents, 50% efficiency
+                    agent.energy += bonus
+                    if self.behavioral_enabled and not hasattr(self, '_proximity_bonuses'):
+                        self._proximity_bonuses = []
+                    if self.behavioral_enabled:
+                        self._proximity_bonuses.append(bonus)
+
+        # 4. Proximity benefits (social clustering rewards)
+        proximity_bonus = agent_config.get("proximity_bonus", 0.0)
+        proximity_range = agent_config.get("proximity_range", 1)
+        
+        if proximity_bonus > 0:
+            for agent in self.agents:
+                nearby_count = 0
+                for other in self.agents:
+                    if other != agent:
+                        distance = self._calculate_distance(agent.position, other.position)
+                        if distance <= proximity_range:
+                            nearby_count += 1
+                
+                # Energy bonus scales with nearby agents (diminishing returns)
+                if nearby_count > 0:
+                    bonus = proximity_bonus * min(nearby_count, 3) * 0.5  # Cap at 3 agents, 50% efficiency
+                    agent.energy += bonus
+                    if self.behavioral_enabled and not hasattr(self, '_proximity_bonuses'):
+                        self._proximity_bonuses = []
+                    if self.behavioral_enabled:
+                        self._proximity_bonuses.append(bonus)
+
+        # 5. Consume food
         for agent in self.agents:
             energy_gained = self.environment.consume_food(agent.position)
             agent.energy += energy_gained
@@ -348,11 +396,11 @@ class Simulation:
                 if self.behavioral_enabled:
                     self._food_consumed_this_interval += energy_gained
 
-        # 4. Update energy (base metabolic cost)
+        # 6. Update energy (base metabolic cost)
         for agent in self.agents:
             agent.update_energy(agent_config["base_metabolic_cost"])
 
-        # 5. Reproduction
+        # 7. Reproduction
         new_agents = []
         for agent in self.agents:
             if agent.energy > agent_config.get("reproduction_threshold", 150):
@@ -737,6 +785,18 @@ class Simulation:
                             signal_count += 1
                             
         return signals
+
+    def _calculate_distance(self, pos1: Tuple[int, int], pos2: Tuple[int, int]) -> float:
+        """Calculate Euclidean distance between two positions with toroidal wrapping."""
+        x1, y1 = pos1
+        x2, y2 = pos2
+        grid_width, grid_height = self.environment.grid_size
+        
+        # Calculate shortest distance considering toroidal wrapping
+        dx = min(abs(x2 - x1), grid_width - abs(x2 - x1))
+        dy = min(abs(y2 - y1), grid_height - abs(y2 - y1))
+        
+        return (dx**2 + dy**2)**0.5
 
     def _are_adjacent(self, pos1: tuple, pos2: tuple) -> bool:
         """Check if two positions are adjacent (within 1 cell distance).

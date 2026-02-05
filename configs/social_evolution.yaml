@@ -1,0 +1,52 @@
+# Configuration designed to create selection pressure for social behaviors
+simulation:
+  grid_size: [80, 80]           # Smaller grid = more interaction
+  max_timesteps: 1000000
+  population_cap: 150           # Lower cap = more competition
+  initial_population: 30        # Start smaller
+  seed: 42
+
+environment:
+  food_spawn_rate: 0.005        # Much less food = scarcity pressure
+  food_energy_value: 15         # Higher value = worth competing for
+
+agent:
+  initial_energy: 80            # Lower starting energy
+  base_metabolic_cost: 1.2      # Slightly higher metabolic pressure  
+  movement_cost: 0.15           # Higher movement cost
+  communication_cost: 0.3       # Reduced communication cost to encourage use
+  transfer_amount: 15.0         # Higher transfer amounts = more beneficial
+  perception_range: 2
+  reproduction_threshold: 130   # Lower threshold = easier reproduction
+  reproduction_cost: 60         # Lower cost = more offspring
+  proximity_bonus: 2.0          # NEW: Energy bonus for being near other agents
+  proximity_range: 1            # NEW: Range for proximity bonus
+
+brain:
+  input_size: 52
+  hidden_size: 32
+  output_size: 6
+  activation: relu
+  social_features: true         # Enable social behaviors
+
+evolution:
+  mutation_rate: 0.12           # Slightly higher mutation for faster evolution
+  mutation_std: 0.08            # Smaller mutations for fine-tuning
+
+logging:
+  log_interval: 500
+  checkpoint_interval: 5000
+  analysis_interval: 25000
+  visualization_fps: 30
+  save_dir: experiments/logs
+
+behavioral_metrics:
+  enabled: true
+  movement_history_length: 20
+  log_interval: 50              # More frequent logging to see changes
+
+lineage_tracking:
+  enabled: true
+  save_interval: 10000
+  track_genetic_distance: false
+  max_lineage_depth: 1000
