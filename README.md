@@ -63,6 +63,7 @@ Current capabilities:
 ### Social Evolution in Action
 
 ![Social Behavior Demo](docs/social-evolution-demo.gif)
+
 *Agents with social intelligence: clustering for proximity bonuses, communicating via signals, and sharing resources through cooperation. Watch the real-time social metrics (top-left) as behaviors evolve.*
 
 **What you're seeing:**
