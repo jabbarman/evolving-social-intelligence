@@ -62,16 +62,14 @@ Current capabilities:
 
 ### Social Evolution in Action
 
-*🎬 Animated demo coming soon! See [instructions](docs/create-animated-demo.md) for creating your own GIF.*
+![Social Behavior Demo](docs/social-evolution-demo.gif)
+*Agents with social intelligence: clustering for proximity bonuses, communicating via signals, and sharing resources through cooperation. Watch the real-time social metrics (top-left) as behaviors evolve.*
 
-![Demo Screenshot](docs/demo-step-000.png)
-*Social intelligence simulation showing agents (colored circles) with real-time social metrics. Agents evolve memory, communication, and cooperation over time.*
-
-**What the simulation shows:**
-- **Colored circles**: Agents with evolving neural networks (blue=low energy, red=high energy)
-- **Green squares**: Food resources that agents compete for and share information about
+**What you're seeing:**
+- **Colored circles**: Agents with evolving social behaviors (blue=low energy, red=high energy)
+- **Green squares**: Food resources agents compete for and share information about
 - **Social metrics** (top-left): Live tracking of communication rates, resource transfers, and clustering behavior
-- **Emergent behaviors**: Over time, agents develop clustering, signaling, and cooperation strategies
+- **Dynamic evolution**: Social strategies emerging over time through natural selection
 
 ### Run Your Own Demo
 
@@ -85,9 +83,9 @@ python3 main.py --config configs/social_evolution.yaml --steps 2000
 python3 main.py --config configs/social_test.yaml --steps 500
 ```
 
-**Create your own animated GIF:** Follow the [demo creation guide](docs/create-animated-demo.md)
+**Create additional animations:** Follow the [demo creation guide](docs/create-animated-demo.md)
 
-> **💡 Tip**: Social behaviors emerge gradually over 500-2000+ timesteps as agents evolve communication and cooperation strategies through natural selection. Watch the social metrics change as evolution discovers beneficial strategies!
+> **💡 Tip**: Social behaviors emerge gradually over 500-2000+ timesteps as agents evolve communication and cooperation strategies through natural selection. The animation shows accelerated footage of this evolutionary process!
 
 ---
 ## System Dependencies
